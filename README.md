@@ -37,6 +37,9 @@ agentos memory export --format json --output memories.json
 agentos memory import memories.json
 agentos sdd new add-memory-search
 agentos skills scan
+agentos skills list
+agentos skills show sqlite-memory
+agentos skills validate
 agentos policies check --path .env
 agentos policies check --command "rm -rf project"
 ```
@@ -46,6 +49,8 @@ agentos policies check --command "rm -rf project"
 Operational traces are written locally as JSONL under `.agentos/traces/YYYY-MM-DD.jsonl`.
 
 Memory commands print Rich tables by default. Use `--json` with `memory add`, `memory search`, `memory list`, `memory get`, and `memory delete` when structured output is needed.
+
+Skills can live in project-local `skills/**/SKILL.md` or Codex-style `.agents/skills/**/SKILL.md`. Run `agentos skills scan` to write `.agentos/skill-registry.json`, `agentos skills list` to inspect entries, and `agentos skills show <skill-name>` to load full skill content on demand.
 
 ## Tests
 

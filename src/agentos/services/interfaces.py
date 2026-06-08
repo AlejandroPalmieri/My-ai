@@ -6,7 +6,7 @@ from typing import Protocol
 from agentos.memory.store import Memory
 from agentos.policies.checker import PolicyResult
 from agentos.sdd.generator import SDDChange
-from agentos.skills.registry import SkillRegistry
+from agentos.skills.registry import SkillContent, SkillRegistry, SkillValidation
 
 
 class TechnicalMemoryService(Protocol):
@@ -50,6 +50,12 @@ class StrategicBrainService(Protocol):
 
 class SkillRegistryService(Protocol):
     def scan(self) -> SkillRegistry: ...
+
+    def list(self) -> SkillRegistry: ...
+
+    def show(self, skill_name: str) -> SkillContent: ...
+
+    def validate(self) -> SkillValidation: ...
 
 
 class PolicyService(Protocol):

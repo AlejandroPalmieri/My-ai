@@ -12,7 +12,14 @@ from agentos.sdd.generator import (
     get_change_status,
     list_changes,
 )
-from agentos.skills.registry import SkillRegistry, scan_skills
+from agentos.skills.registry import (
+    SkillContent,
+    SkillRegistry,
+    SkillValidation,
+    scan_skills,
+    show_skill,
+    validate_skills,
+)
 
 
 class LocalTechnicalMemoryService:
@@ -71,6 +78,15 @@ class LocalSkillRegistryService:
 
     def scan(self) -> SkillRegistry:
         return scan_skills(self.root)
+
+    def list(self) -> SkillRegistry:
+        return scan_skills(self.root)
+
+    def show(self, skill_name: str) -> SkillContent:
+        return show_skill(self.root, skill_name)
+
+    def validate(self) -> SkillValidation:
+        return validate_skills(self.root)
 
 
 class LocalPolicyService:

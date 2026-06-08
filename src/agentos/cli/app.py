@@ -283,7 +283,66 @@ def skills_scan(root: RootOption = Path(".")) -> None:
     trace = _start_trace(root, "skills.scan")
     registry = LocalSkillRegistryService(root).scan()
     _complete_trace(trace, "skills.scan", {"count": len(registry.skills)})
+    for warning in registry.warnings:
+        console.print(f"Warning: {warning}")
     console.print(f"Scanned {len(registry.skills)} skills")
+
+
+@skills_app.command("list")
+def skills_list(root: RootOption = Path(".")) -> None:
+    """List registered skills without loading full skill content."""
+    trace = _start_trace(root, "skills.list")
+    registry = LocalSkillRegistryService(root).list()
+    table = Table("Name", "Scope", "Valid", "Description", "Path")
+    for skill in registry.skills:
+        table.add_row(skill.name, skill.scope, str(skill.valid), skill.description, skill.path)
+    console.print(table)
+    for warning in registry.warnings:
+        console.print(f"Warning: {warning}")
+    _complete_trace(trace, "skills.list", {"count": len(registry.skills)})
+
+
+@skills_app.command("show")
+def skills_show(
+    skill_name: Annotated[str, typer.Argument(help="Skill name.")],
+    root: RootOption = Path("."),
+) -> None:
+    """Show a skill and load its full SKILL.md content."""
+    trace = _start_trace(root, "skills.show")
+    try:
+        skill = LocalSkillRegistryService(root).show(skill_name)
+    except KeyError as error:
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    console.print(f"Name: {skill.name}")
+    console.print(f"Scope: {skill.scope}")
+    console.print(f"Path: {skill.path}")
+    console.print(f"Description: {skill.description}")
+    if skill.errors:
+        console.print("Errors: " + ", ".join(skill.errors))
+    console.print(skill.content)
+    _complete_trace(trace, "skills.show", {"skill": skill.name})
+
+
+@skills_app.command("validate")
+def skills_validate(root: RootOption = Path(".")) -> None:
+    """Validate registered skill frontmatter."""
+    trace = _start_trace(root, "skills.validate")
+    validation = LocalSkillRegistryService(root).validate()
+    for warning in validation.warnings:
+        console.print(f"Warning: {warning}")
+    for error in validation.errors:
+        console.print(error)
+    console.print(
+        f"Validated {validation.skill_count} skills; invalid: {validation.invalid_count}"
+    )
+    _complete_trace(
+        trace,
+        "skills.validate",
+        {"valid": validation.valid, "invalid_count": validation.invalid_count},
+    )
+    if not validation.valid:
+        raise typer.Exit(1)
 
 
 @policies_app.command("check")

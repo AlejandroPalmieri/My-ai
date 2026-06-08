@@ -160,6 +160,9 @@ def test_sdd_skills_and_policies_commands(tmp_path):
     list_result = runner.invoke(app, ["sdd", "list", "--root", str(tmp_path)])
     archive_result = runner.invoke(app, ["sdd", "archive", "demo-change", "--root", str(tmp_path)])
     skills_result = runner.invoke(app, ["skills", "scan", "--root", str(tmp_path)])
+    skills_list_result = runner.invoke(app, ["skills", "list", "--root", str(tmp_path)])
+    skills_show_result = runner.invoke(app, ["skills", "show", "demo", "--root", str(tmp_path)])
+    skills_validate_result = runner.invoke(app, ["skills", "validate", "--root", str(tmp_path)])
     policies_result = runner.invoke(
         app,
         ["policies", "check", "--root", str(tmp_path), "--path", ".env"],
@@ -174,6 +177,11 @@ def test_sdd_skills_and_policies_commands(tmp_path):
     assert "explore" in advance_result.output
     assert "demo-change" in list_result.output
     assert skills_result.exit_code == 0
+    assert skills_list_result.exit_code == 0
+    assert skills_show_result.exit_code == 0
+    assert skills_validate_result.exit_code == 0
+    assert "demo" in skills_list_result.output
+    assert "Demo skill" in skills_show_result.output
     assert policies_result.exit_code == 1
     assert (tmp_path / "openspec" / "changes" / "demo-change" / "proposal.md").exists()
     assert (tmp_path / "openspec" / "changes" / "demo-change" / "metadata.json").exists()
@@ -186,6 +194,17 @@ def test_sdd_invalid_slug_cli_rejected(tmp_path):
 
     assert result.exit_code != 0
     assert "Invalid change name" in result.output
+
+
+def test_skills_validate_cli_reports_invalid_skill(tmp_path):
+    skill_dir = tmp_path / ".agents" / "skills" / "invalid"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("---\nname: invalid\n---\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["skills", "validate", "--root", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "missing description" in result.output
 
 
 def _trace_events(root):

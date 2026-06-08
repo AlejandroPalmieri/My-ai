@@ -11,6 +11,8 @@ def test_memory_export_and_import_json(tmp_path):
         kind="decision",
         content="Portable technical memory",
         tags=["portable"],
+        source="test-suite",
+        confidence=0.9,
     )
     export_path = tmp_path / "memories.json"
 
@@ -20,6 +22,9 @@ def test_memory_export_and_import_json(tmp_path):
 
     assert exported == 1
     assert imported == 1
-    assert target.search("Portable")[0].title == "Export me"
+    imported_memory = target.search("Portable")[0]
+    assert imported_memory.title == "Export me"
+    assert imported_memory.source == "test-suite"
+    assert imported_memory.confidence == 0.9
     export_data = json.loads(export_path.read_text(encoding="utf-8"))
     assert export_data["memories"][0]["tags"] == ["portable"]

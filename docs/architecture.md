@@ -4,8 +4,8 @@ AgentOS Personal uses small Python modules under `src/agentos/` with explicit bo
 
 - `cli`: Typer commands and terminal output.
 - `config`: project initialization helpers.
-- `memory`: SQLite-backed technical memory with FTS5 search when available and LIKE fallback.
-- `sdd`: SDD/OpenSpec artifact generation.
+- `memory`: SQLite-backed technical memory with text IDs, schema versioning, FTS5 search when available, and LIKE fallback.
+- `sdd`: SDD/OpenSpec workflow generation, metadata, phase advancement, and archive state.
 - `skills`: local `skills/**/SKILL.md` scanner and registry writer.
 - `policies`: simple local policy files and checker for sensitive paths and destructive commands.
 - `logging`: placeholder package for future structured logging.
@@ -20,13 +20,20 @@ Phase 2 adds service interfaces for `TechnicalMemoryService`, `StrategicBrainSer
 
 The CLI writes local JSONL traces to `.agentos/traces/YYYY-MM-DD.jsonl` for command starts/completions, memory additions, searches, policy violations, and SDD change creation. These traces are local operational evidence, not autonomous self-improvement.
 
-Memory import/export uses JSON so local memories can move between workspaces without introducing a network dependency.
+Memory import/export uses JSON so local memories can move between workspaces without introducing a network dependency. Memories are stored under `.agentos/memory.db` in the `memories` table with `id`, `project`, `title`, `kind`, `content`, `tags`, `source`, `confidence`, `created_at`, and `updated_at`. The `schema_version` table records the local memory schema version and initialization is idempotent.
 
 Project profiles live at `.agentos/profile.yaml` and provide local presets for Godot, bioinformatics, USMLE, Neocircuit, and data science contexts.
+
+## SDD/OpenSpec Workflow
+
+Non-trivial changes are tracked under `openspec/changes/<change-name>/`. Change names are validated as lowercase slugs. Each change owns proposal, design, task, apply, verify, sync, and metadata artifacts. `metadata.json` stores the active phase, archive flag, timestamps, and phase history.
+
+Valid phases are `init`, `explore`, `proposal`, `spec`, `design`, `tasks`, `apply`, `verify`, `sync`, and `archive`. The workflow advances one phase at a time by default; `--force` is required for non-linear jumps. Archive marks the change as archived in metadata rather than deleting files.
 
 ## Decisions
 
 - SQLite is the only storage dependency for technical memory in the MVP.
-- FTS5 is used opportunistically; systems without FTS5 fall back to `LIKE` queries.
+- FTS5 is used opportunistically; systems without FTS5 fall back to `LIKE` queries across project, title, kind, content, and tags.
 - YAML files are parsed with a tiny list-only parser to avoid adding another dependency in the first pass.
 - CLI commands call small service interfaces so future MCP, Hermes-style runtime, Engram memory, GBrain retrieval, and Continual Harness evaluation integrations can reuse the same boundaries.
+- SDD archive is metadata-only to preserve local audit history and avoid destructive file movement.

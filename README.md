@@ -4,39 +4,52 @@ AgentOS Personal is a local-first foundation for a modular personal AI agent ope
 
 No LLM provider calls, autonomous command execution, external MCP integrations, vector search, or self-modifying prompts are implemented in this first pass.
 
-## Setup
+## Windows PowerShell Setup
 
 ```powershell
-uv sync --extra dev
+python --version
+python -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+. .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
 ```
 
-Run commands through `uv`:
+After activation, validate the CLI and tests:
 
 ```powershell
-uv run agentos version
+agentos version
+pytest
 ```
+
+If `python`, `agentos`, or `pytest` are not found, confirm the virtual environment is activated. See `docs/windows-powershell.md` for the full Windows workflow and fallback commands that use `.venv\Scripts` directly.
 
 ## Commands
 
 ```powershell
-uv run agentos init
-uv run agentos memory add --project demo --title "Decision" --kind decision --content "Use SQLite for local memory." --tag sqlite
-uv run agentos memory search SQLite --project demo
-uv run agentos memory export --format json --output memories.json
-uv run agentos memory import memories.json
-uv run agentos sdd new add-memory-search
-uv run agentos skills scan
-uv run agentos policies check --path .env
-uv run agentos policies check --command "rm -rf project"
+agentos init
+agentos memory add --project demo --title "Decision" --kind decision --content "Use SQLite for local memory." --tag sqlite --source architecture --confidence 0.9
+agentos memory search SQLite --project demo
+agentos memory list
+agentos memory get <memory-id>
+agentos memory delete <memory-id>
+agentos memory export --format json --output memories.json
+agentos memory import memories.json
+agentos sdd new add-memory-search
+agentos skills scan
+agentos policies check --path .env
+agentos policies check --command "rm -rf project"
 ```
 
 `agentos init` also creates `.agentos/profile.yaml` with local project profiles for `godot`, `bioinformatics`, `usmle`, `neocircuit`, and `data-science`.
 
 Operational traces are written locally as JSONL under `.agentos/traces/YYYY-MM-DD.jsonl`.
 
+Memory commands print Rich tables by default. Use `--json` with `memory add`, `memory search`, `memory list`, `memory get`, and `memory delete` when structured output is needed.
+
 ## Tests
 
 ```powershell
-uv run pytest
-uv run ruff check .
+pytest
+ruff check .
 ```

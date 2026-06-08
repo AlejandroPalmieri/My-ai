@@ -17,6 +17,8 @@ class TechnicalMemoryService(Protocol):
         kind: str,
         content: str,
         tags: list[str],
+        source: str | None = None,
+        confidence: float = 1.0,
     ) -> Memory: ...
 
     def search_memories(
@@ -29,6 +31,17 @@ class TechnicalMemoryService(Protocol):
     def export_memories(self, path: Path) -> int: ...
 
     def import_memories(self, path: Path) -> int: ...
+
+    def list_memories(
+        self,
+        project: str | None = None,
+        kind: str | None = None,
+        limit: int | None = None,
+    ) -> list[Memory]: ...
+
+    def get_memory(self, memory_id: str) -> Memory | None: ...
+
+    def delete_memory(self, memory_id: str) -> bool: ...
 
 
 class StrategicBrainService(Protocol):
@@ -47,6 +60,14 @@ class PolicyService(Protocol):
 
 class SDDService(Protocol):
     def create_change(self, change_name: str) -> SDDChange: ...
+
+    def list_changes(self) -> list[SDDChange]: ...
+
+    def get_status(self, change_name: str) -> SDDChange: ...
+
+    def advance_change(self, change_name: str, phase: str, force: bool = False) -> SDDChange: ...
+
+    def archive_change(self, change_name: str) -> SDDChange: ...
 
 
 class RefinerService(Protocol):

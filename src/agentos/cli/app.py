@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Annotated
 
@@ -8,6 +9,7 @@ from rich.table import Table
 from agentos import __version__
 from agentos.config.project import init_project
 from agentos.logging.traces import TraceLogger
+from agentos.sdd.generator import InvalidPhaseTransitionError, InvalidSlugError
 from agentos.services.local import (
     LocalPolicyService,
     LocalSDDService,
@@ -46,6 +48,12 @@ def memory_add(
     kind: Annotated[str, typer.Option("--kind", help="Memory kind.")] = "note",
     project: Annotated[str, typer.Option("--project", help="Project name.")] = "default",
     tags: Annotated[list[str] | None, typer.Option("--tag", help="Memory tag.")] = None,
+    source: Annotated[str | None, typer.Option("--source", help="Memory source.")] = None,
+    confidence: Annotated[
+        float,
+        typer.Option("--confidence", min=0.0, max=1.0, help="Confidence score."),
+    ] = 1.0,
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON output.")] = False,
     root: RootOption = Path("."),
 ) -> None:
     """Add a technical memory."""
@@ -57,16 +65,22 @@ def memory_add(
         kind=kind,
         content=content,
         tags=tags or [],
+        source=source,
+        confidence=confidence,
     )
     trace.log_event("memory_added", {"memory_id": memory.id, "project": memory.project})
     _complete_trace(trace, "memory.add")
-    console.print(f"Added memory {memory.id}: {memory.title}")
+    if json_output:
+        _print_json(memory.model_dump())
+    else:
+        console.print(f"Added memory {memory.id}: {memory.title}")
 
 
 @memory_app.command("search")
 def memory_search(
     query: Annotated[str, typer.Argument(help="Search query.")],
     project: Annotated[str | None, typer.Option("--project", help="Project filter.")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON output.")] = False,
     root: RootOption = Path("."),
 ) -> None:
     """Search technical memories."""
@@ -77,11 +91,72 @@ def memory_search(
         "search_performed",
         {"query": query, "project": project or "", "result_count": len(results)},
     )
-    table = Table("ID", "Project", "Kind", "Title")
-    for item in results:
-        table.add_row(str(item.id), item.project, item.kind, item.title)
-    console.print(table)
+    if json_output:
+        _print_json({"memories": [item.model_dump() for item in results]})
+    else:
+        _print_memory_table(results)
     _complete_trace(trace, "memory.search")
+
+
+@memory_app.command("list")
+def memory_list(
+    project: Annotated[str | None, typer.Option("--project", help="Project filter.")] = None,
+    kind: Annotated[str | None, typer.Option("--kind", help="Kind filter.")] = None,
+    limit: Annotated[int | None, typer.Option("--limit", help="Maximum rows to show.")] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON output.")] = False,
+    root: RootOption = Path("."),
+) -> None:
+    """List technical memories."""
+    trace = _start_trace(root, "memory.list")
+    service = LocalTechnicalMemoryService(root)
+    results = service.list_memories(project=project, kind=kind, limit=limit)
+    if json_output:
+        _print_json({"memories": [item.model_dump() for item in results]})
+    else:
+        _print_memory_table(results)
+    _complete_trace(trace, "memory.list", {"count": len(results)})
+
+
+@memory_app.command("get")
+def memory_get(
+    memory_id: Annotated[str, typer.Argument(help="Memory ID.")],
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON output.")] = False,
+    root: RootOption = Path("."),
+) -> None:
+    """Get a technical memory by ID."""
+    trace = _start_trace(root, "memory.get")
+    service = LocalTechnicalMemoryService(root)
+    memory = service.get_memory(memory_id)
+    if memory is None:
+        _complete_trace(trace, "memory.get", {"found": False})
+        console.print(f"Memory not found: {memory_id}")
+        raise typer.Exit(1)
+    if json_output:
+        _print_json(memory.model_dump())
+    else:
+        _print_memory_detail(memory.model_dump())
+    _complete_trace(trace, "memory.get", {"found": True})
+
+
+@memory_app.command("delete")
+def memory_delete(
+    memory_id: Annotated[str, typer.Argument(help="Memory ID.")],
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON output.")] = False,
+    root: RootOption = Path("."),
+) -> None:
+    """Delete a technical memory by explicit ID."""
+    trace = _start_trace(root, "memory.delete")
+    service = LocalTechnicalMemoryService(root)
+    deleted = service.delete_memory(memory_id)
+    _complete_trace(trace, "memory.delete", {"deleted": deleted})
+    if json_output:
+        _print_json({"id": memory_id, "deleted": deleted})
+    elif deleted:
+        console.print(f"Deleted memory {memory_id}")
+    else:
+        console.print(f"Memory not found: {memory_id}")
+    if not deleted:
+        raise typer.Exit(1)
 
 
 @memory_app.command("export")
@@ -125,10 +200,81 @@ def sdd_new(
     """Create SDD/OpenSpec artifacts for a change."""
     trace = _start_trace(root, "sdd.new")
     service = LocalSDDService(root)
-    change = service.create_change(change_name)
+    try:
+        change = service.create_change(change_name)
+    except InvalidSlugError as error:
+        console.print(str(error))
+        raise typer.Exit(1) from error
     trace.log_event("sdd_created", {"change_name": change.name, "path": str(change.path)})
     _complete_trace(trace, "sdd.new")
     console.print(f"Created SDD change at {change.path}")
+
+
+@sdd_app.command("list")
+def sdd_list(root: RootOption = Path(".")) -> None:
+    """List SDD/OpenSpec changes."""
+    trace = _start_trace(root, "sdd.list")
+    changes = LocalSDDService(root).list_changes()
+    table = Table("Change", "Phase", "Archived", "Path")
+    for change in changes:
+        table.add_row(change.name, change.phase, str(change.archived), str(change.path))
+    console.print(table)
+    _complete_trace(trace, "sdd.list", {"count": len(changes)})
+
+
+@sdd_app.command("status")
+def sdd_status(
+    change_name: Annotated[str, typer.Argument(help="OpenSpec change name.")],
+    root: RootOption = Path("."),
+) -> None:
+    """Show SDD/OpenSpec change status."""
+    trace = _start_trace(root, "sdd.status")
+    try:
+        change = LocalSDDService(root).get_status(change_name)
+    except (FileNotFoundError, InvalidSlugError) as error:
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    table = Table("Field", "Value")
+    table.add_row("name", change.name)
+    table.add_row("phase", change.phase)
+    table.add_row("archived", str(change.archived))
+    table.add_row("path", str(change.path))
+    console.print(table)
+    _complete_trace(trace, "sdd.status", {"phase": change.phase})
+
+
+@sdd_app.command("advance")
+def sdd_advance(
+    change_name: Annotated[str, typer.Argument(help="OpenSpec change name.")],
+    phase: Annotated[str, typer.Option("--phase", help="Target workflow phase.")],
+    force: Annotated[bool, typer.Option("--force", help="Allow non-linear phase jumps.")] = False,
+    root: RootOption = Path("."),
+) -> None:
+    """Advance an SDD/OpenSpec change to the next phase."""
+    trace = _start_trace(root, "sdd.advance")
+    try:
+        change = LocalSDDService(root).advance_change(change_name, phase, force=force)
+    except (FileNotFoundError, InvalidPhaseTransitionError, InvalidSlugError) as error:
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    console.print(f"{change.name} advanced to {change.phase}")
+    _complete_trace(trace, "sdd.advance", {"phase": change.phase})
+
+
+@sdd_app.command("archive")
+def sdd_archive(
+    change_name: Annotated[str, typer.Argument(help="OpenSpec change name.")],
+    root: RootOption = Path("."),
+) -> None:
+    """Mark an SDD/OpenSpec change as archived."""
+    trace = _start_trace(root, "sdd.archive")
+    try:
+        change = LocalSDDService(root).archive_change(change_name)
+    except (FileNotFoundError, InvalidSlugError) as error:
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    console.print(f"{change.name} archived")
+    _complete_trace(trace, "sdd.archive", {"phase": change.phase})
 
 
 @skills_app.command("scan")
@@ -186,3 +332,32 @@ def _complete_trace(
     if payload:
         event_payload.update(payload)
     trace.log_event("command_completed", event_payload)
+
+
+def _print_memory_table(memories) -> None:
+    table = Table("ID", "Project", "Kind", "Title", "Tags", "Confidence")
+    for item in memories:
+        table.add_row(
+            item.id,
+            item.project,
+            item.kind,
+            item.title,
+            ", ".join(item.tags),
+            f"{item.confidence:.2f}",
+        )
+    console.print(table)
+
+
+def _print_memory_detail(memory: dict[str, object]) -> None:
+    table = Table("Field", "Value")
+    for key, value in memory.items():
+        if isinstance(value, list):
+            rendered = ", ".join(str(item) for item in value)
+        else:
+            rendered = "" if value is None else str(value)
+        table.add_row(key, rendered)
+    console.print(table)
+
+
+def _print_json(payload: dict[str, object]) -> None:
+    typer.echo(json.dumps(payload, indent=2))

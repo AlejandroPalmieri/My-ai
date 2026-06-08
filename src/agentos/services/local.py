@@ -4,7 +4,14 @@ from pathlib import Path
 
 from agentos.memory.store import Memory, MemoryStore
 from agentos.policies.checker import PolicyChecker, PolicyResult, create_default_policies
-from agentos.sdd.generator import SDDChange, create_change
+from agentos.sdd.generator import (
+    SDDChange,
+    advance_change,
+    archive_change,
+    create_change,
+    get_change_status,
+    list_changes,
+)
 from agentos.skills.registry import SkillRegistry, scan_skills
 
 
@@ -19,8 +26,10 @@ class LocalTechnicalMemoryService:
         kind: str,
         content: str,
         tags: list[str],
+        source: str | None = None,
+        confidence: float = 1.0,
     ) -> Memory:
-        return self.store.add_memory(project, title, kind, content, tags)
+        return self.store.add_memory(project, title, kind, content, tags, source, confidence)
 
     def search_memories(
         self,
@@ -35,6 +44,20 @@ class LocalTechnicalMemoryService:
 
     def import_memories(self, path: Path) -> int:
         return self.store.import_json(path)
+
+    def list_memories(
+        self,
+        project: str | None = None,
+        kind: str | None = None,
+        limit: int | None = None,
+    ) -> list[Memory]:
+        return self.store.list_memories(project=project, kind=kind, limit=limit)
+
+    def get_memory(self, memory_id: str) -> Memory | None:
+        return self.store.get_memory(memory_id)
+
+    def delete_memory(self, memory_id: str) -> bool:
+        return self.store.delete_memory(memory_id)
 
 
 class LocalStrategicBrainService:
@@ -68,6 +91,18 @@ class LocalSDDService:
 
     def create_change(self, change_name: str) -> SDDChange:
         return create_change(self.root, change_name)
+
+    def list_changes(self) -> list[SDDChange]:
+        return list_changes(self.root)
+
+    def get_status(self, change_name: str) -> SDDChange:
+        return get_change_status(self.root, change_name)
+
+    def advance_change(self, change_name: str, phase: str, force: bool = False) -> SDDChange:
+        return advance_change(self.root, change_name, phase, force=force)
+
+    def archive_change(self, change_name: str) -> SDDChange:
+        return archive_change(self.root, change_name)
 
 
 class LocalRefinerService:

@@ -1,0 +1,1 @@
+"""SQLite technical memory."""

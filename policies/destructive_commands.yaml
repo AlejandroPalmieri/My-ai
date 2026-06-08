@@ -1,0 +1,9 @@
+destructive_commands:
+  - rm -rf
+  - git push --force
+  - drop database
+  - database drop
+  - database reset
+  - chmod -R
+  - chown -R
+  - rotate credentials

@@ -1,0 +1,1 @@
+"""SDD/OpenSpec artifact generation."""

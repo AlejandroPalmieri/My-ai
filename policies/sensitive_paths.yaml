@@ -1,0 +1,8 @@
+sensitive_paths:
+  - .env
+  - .env.local
+  - id_rsa
+  - id_ed25519
+  - private_key
+  - credentials
+  - secrets

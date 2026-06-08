@@ -41,6 +41,8 @@ The installer writes a small `agentos.cmd` shim to your user `WindowsApps` direc
 ## Commands
 
 ```powershell
+agentos
+agentos --model local --profile godot
 agentos version
 agentos doctor
 agentos init
@@ -63,6 +65,8 @@ agentos policies check --command "rm -rf project"
 `agentos init` also creates `.agentos/profile.yaml` with local project profiles for `godot`, `bioinformatics`, `usmle`, `neocircuit`, and `data-science`.
 
 Operational traces are written locally as JSONL under `.agentos/traces/YYYY-MM-DD.jsonl`.
+
+Running `agentos` without a subcommand starts the local interactive CLI. Unknown root-level options are forwarded to the interactive session so future model/profile/runtime flags can be handled there without breaking command parsing.
 
 `agentos doctor` checks the local Python version, project root, repository-local CLI executable, SQLite, SQLite FTS5 availability, policy files, and the Windows `agentos.cmd` shim when running on Windows. Missing FTS5, policies, or shim configuration are reported as warnings; missing critical runtime pieces return a non-zero exit code.
 

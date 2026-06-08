@@ -1,0 +1,17 @@
+{
+  "name": "add-interactive-default",
+  "phase": "sync",
+  "archived": false,
+  "created_at": "2026-06-08T02:53:56.704680+00:00",
+  "updated_at": "2026-06-08T03:06:08.827161+00:00",
+  "phase_history": [
+    {
+      "phase": "init",
+      "at": "2026-06-08T02:53:56.704680+00:00"
+    },
+    {
+      "phase": "sync",
+      "at": "2026-06-08T03:06:08.827161+00:00"
+    }
+  ]
+}

@@ -78,7 +78,7 @@ pytest
 Expected result:
 
 ```text
-34 passed
+36 passed
 ```
 
 ## Optional Ruff Check

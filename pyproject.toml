@@ -17,7 +17,7 @@ dev = [
 ]
 
 [project.scripts]
-agentos = "agentos.cli.app:app"
+agentos = "agentos.cli.app:main"
 
 [build-system]
 requires = ["hatchling"]

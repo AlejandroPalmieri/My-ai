@@ -3,7 +3,7 @@
 ## Implemented in MVP
 
 - Python package scaffold under `src/agentos/`.
-- Typer CLI with version, doctor, init, memory, SDD, skills, and policies commands.
+- Typer CLI with interactive default mode plus version, doctor, init, memory, SDD, skills, and policies commands.
 - SQLite technical memory with FTS5 fallback behavior.
 - SDD/OpenSpec artifact generator.
 - Skill registry scanner for `skills/**/SKILL.md`.

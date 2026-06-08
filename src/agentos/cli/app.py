@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -7,6 +8,7 @@ from rich.console import Console
 from rich.table import Table
 
 from agentos import __version__
+from agentos.cli.interactive import run_interactive_cli
 from agentos.config.project import init_project
 from agentos.logging.traces import TraceLogger
 from agentos.sdd.generator import InvalidPhaseTransitionError, InvalidSlugError
@@ -18,13 +20,84 @@ from agentos.services.local import (
     LocalTechnicalMemoryService,
 )
 
-app = typer.Typer(help="AgentOS Personal local-first agent operating system.")
+ROOT_CONTEXT_SETTINGS = {"allow_extra_args": True, "ignore_unknown_options": True}
+app = typer.Typer(
+    help="AgentOS Personal local-first agent operating system.",
+    context_settings=ROOT_CONTEXT_SETTINGS,
+)
 memory_app = typer.Typer(help="Technical memory commands.")
 sdd_app = typer.Typer(help="SDD/OpenSpec artifact commands.")
 skills_app = typer.Typer(help="Skill registry commands.")
 policies_app = typer.Typer(help="Policy checking commands.")
 console = Console()
 RootOption = Annotated[Path, typer.Option("--root", help="Project root.")]
+TOP_LEVEL_COMMANDS = {"version", "init", "doctor", "memory", "sdd", "skills", "policies"}
+TYPER_ROOT_OPTIONS = {"--help", "-h", "--install-completion", "--show-completion"}
+
+
+@app.callback(invoke_without_command=True, context_settings=ROOT_CONTEXT_SETTINGS)
+def root_callback(
+    ctx: typer.Context,
+    root: RootOption = Path("."),
+) -> None:
+    """Run the interactive CLI when no subcommand is specified."""
+    if ctx.invoked_subcommand is not None:
+        return
+    trace = _start_trace(root, "interactive")
+    run_interactive_cli(root, list(ctx.args), console)
+    _complete_trace(trace, "interactive", {"forwarded_arg_count": len(ctx.args)})
+
+
+def main(args: list[str] | None = None) -> None:
+    """Console-script entrypoint that forwards no-subcommand invocations."""
+    cli_args = list(sys.argv[1:] if args is None else args)
+    if _should_run_interactive(cli_args):
+        root, forwarded_args = _extract_interactive_args(cli_args)
+        trace = _start_trace(root, "interactive")
+        run_interactive_cli(root, forwarded_args, console)
+        _complete_trace(trace, "interactive", {"forwarded_arg_count": len(forwarded_args)})
+        return
+    app(args=cli_args, prog_name="agentos")
+
+
+def _should_run_interactive(args: list[str]) -> bool:
+    if any(arg in TYPER_ROOT_OPTIONS for arg in args):
+        return False
+    index = _first_non_root_option_index(args)
+    if index >= len(args):
+        return True
+    return args[index] not in TOP_LEVEL_COMMANDS
+
+
+def _extract_interactive_args(args: list[str]) -> tuple[Path, list[str]]:
+    root = Path(".")
+    forwarded_args: list[str] = []
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--root" and index + 1 < len(args):
+            root = Path(args[index + 1])
+            index += 2
+        elif arg.startswith("--root="):
+            root = Path(arg.split("=", 1)[1])
+            index += 1
+        else:
+            forwarded_args.append(arg)
+            index += 1
+    return root, forwarded_args
+
+
+def _first_non_root_option_index(args: list[str]) -> int:
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--root":
+            index += 2
+        elif arg.startswith("--root="):
+            index += 1
+        else:
+            break
+    return index
 
 
 @app.command()

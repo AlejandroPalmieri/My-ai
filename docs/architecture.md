@@ -2,7 +2,7 @@
 
 AgentOS Personal uses small Python modules under `src/agentos/` with explicit boundaries:
 
-- `cli`: Typer commands and terminal output.
+- `cli`: Typer commands, terminal output, and the safe local interactive entrypoint.
 - `config`: project initialization helpers.
 - `memory`: SQLite-backed technical memory with text IDs, schema versioning, FTS5 search when available, and LIKE fallback.
 - `sdd`: SDD/OpenSpec workflow generation, metadata, phase advancement, and archive state.
@@ -40,3 +40,4 @@ Valid phases are `init`, `explore`, `proposal`, `spec`, `design`, `tasks`, `appl
 - SDD archive is metadata-only to preserve local audit history and avoid destructive file movement.
 - Windows command discovery uses `scripts/install-agentos-command.ps1` to write a small `agentos.cmd` shim in the user `WindowsApps` directory. The shim delegates to the repository-local `.venv\Scripts\agentos.exe`. The package remains installed in editable mode, so source changes update the CLI behavior without a global install.
 - `agentos doctor` is read-only diagnostic behavior. It reports warnings for optional or recoverable setup gaps such as missing FTS5, policy files, or Windows shim configuration, and exits non-zero only for failed critical checks.
+- The console-script entrypoint is `agentos.cli.app:main` rather than the raw Typer app. This wrapper detects invocations with no known subcommand and forwards root-level options to the interactive CLI before Typer command parsing runs.

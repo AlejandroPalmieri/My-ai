@@ -4,9 +4,9 @@
 
 - Branch: `main`
 - Remote tracking: `origin/main`
-- `git status`: active local changes for command shim and doctor command work
+- `git status`: active local changes for interactive default CLI work
 - Test command run: `.\.venv\Scripts\pytest.exe`
-- Test result: `34 passed`
+- Test result: `36 passed`
 - Lint command run: `.\.venv\Scripts\ruff.exe check .`
 - Lint result: `All checks passed`
 
@@ -15,7 +15,9 @@
 - `src/agentos/__init__.py`
   - Defines package version `0.1.0`.
 - `src/agentos/cli/app.py`
-  - Typer CLI application and command wiring.
+  - Typer CLI application, console-script entrypoint, interactive dispatch, and command wiring.
+- `src/agentos/cli/interactive.py`
+  - Safe local interactive CLI loop for no-subcommand invocations.
 - `src/agentos/config/project.py`
   - Project initialization helper.
 - `src/agentos/config/profiles.py`
@@ -43,6 +45,7 @@
 ## Current CLI Commands Found
 
 - `agentos version`
+- `agentos` interactive default mode
 - `agentos doctor`
 - `agentos init`
 - `agentos memory add`
@@ -69,6 +72,8 @@
   - CLI smoke coverage for version, doctor, init, memory add/search/list/get/delete/import/export, SDD, skills, policies, and trace event creation.
 - `tests/test_doctor.py`
   - Environment diagnostic checks for healthy and missing executable states.
+- `tests/test_interactive_cli.py`
+  - Interactive default startup and no-subcommand option forwarding.
 - `tests/test_memory.py`
   - Memory add/search and project filtering.
 - `tests/test_memory_import_export.py`
@@ -90,7 +95,7 @@
 
 - Python package scaffold under `src/agentos`.
 - `pyproject.toml` with Python 3.11+, Typer, Rich, Pydantic, pytest, and Ruff.
-- Typer CLI with the MVP command surface, doctor diagnostics, and Phase 2 memory import/export.
+- Typer CLI with interactive default mode, the MVP command surface, doctor diagnostics, and Phase 2 memory import/export.
 - SQLite technical memory under `.agentos/memory.db` with `schema_version`.
 - FTS5-backed memory search with fallback to LIKE search across project, title, kind, content, and tags.
 - SDD/OpenSpec artifact generator.

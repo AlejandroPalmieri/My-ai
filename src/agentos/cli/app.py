@@ -11,6 +11,7 @@ from agentos.config.project import init_project
 from agentos.logging.traces import TraceLogger
 from agentos.sdd.generator import InvalidPhaseTransitionError, InvalidSlugError
 from agentos.services.local import (
+    LocalDoctorService,
     LocalPolicyService,
     LocalSDDService,
     LocalSkillRegistryService,
@@ -39,6 +40,17 @@ def init(root: RootOption = Path(".")) -> None:
     created = init_project(root)
     _complete_trace(trace, "init")
     console.print(f"Initialized AgentOS project at {created.root}")
+
+
+@app.command()
+def doctor(root: RootOption = Path(".")) -> None:
+    """Diagnose the local AgentOS environment."""
+    trace = _start_trace(root, "doctor")
+    report = LocalDoctorService(root).run()
+    _print_doctor_report(report)
+    _complete_trace(trace, "doctor", {"healthy": report.healthy})
+    if not report.healthy:
+        raise typer.Exit(1)
 
 
 @memory_app.command("add")
@@ -420,3 +432,11 @@ def _print_memory_detail(memory: dict[str, object]) -> None:
 
 def _print_json(payload: dict[str, object]) -> None:
     typer.echo(json.dumps(payload, indent=2))
+
+
+def _print_doctor_report(report) -> None:
+    console.print("AgentOS Doctor")
+    table = Table("Check", "Status", "Detail")
+    for check in report.checks:
+        table.add_row(check.name, check.status.value, check.detail)
+    console.print(table)

@@ -8,6 +8,7 @@ AgentOS Personal uses small Python modules under `src/agentos/` with explicit bo
 - `sdd`: SDD/OpenSpec workflow generation, metadata, phase advancement, and archive state.
 - `skills`: local `skills/**/SKILL.md` scanner and registry writer.
 - `policies`: simple local policy files and checker for sensitive paths and destructive commands.
+- `diagnostics`: read-only local health checks for CLI setup, SQLite/FTS5, policies, and Windows command discovery.
 - `logging`: placeholder package for future structured logging.
 - `utils`: placeholder package for shared helpers.
 - `services`: MCP-ready service interfaces and local adapters.
@@ -37,3 +38,5 @@ Valid phases are `init`, `explore`, `proposal`, `spec`, `design`, `tasks`, `appl
 - YAML files are parsed with a tiny list-only parser to avoid adding another dependency in the first pass.
 - CLI commands call small service interfaces so future MCP, Hermes-style runtime, Engram memory, GBrain retrieval, and Continual Harness evaluation integrations can reuse the same boundaries.
 - SDD archive is metadata-only to preserve local audit history and avoid destructive file movement.
+- Windows command discovery uses `scripts/install-agentos-command.ps1` to write a small `agentos.cmd` shim in the user `WindowsApps` directory. The shim delegates to the repository-local `.venv\Scripts\agentos.exe`. The package remains installed in editable mode, so source changes update the CLI behavior without a global install.
+- `agentos doctor` is read-only diagnostic behavior. It reports warnings for optional or recoverable setup gaps such as missing FTS5, policy files, or Windows shim configuration, and exits non-zero only for failed critical checks.

@@ -3,7 +3,7 @@
 ## Implemented in MVP
 
 - Python package scaffold under `src/agentos/`.
-- Typer CLI with version, init, memory, SDD, skills, and policies commands.
+- Typer CLI with version, doctor, init, memory, SDD, skills, and policies commands.
 - SQLite technical memory with FTS5 fallback behavior.
 - SDD/OpenSpec artifact generator.
 - Skill registry scanner for `skills/**/SKILL.md`.
@@ -17,6 +17,7 @@
 - Memory JSON export/import commands.
 - Project profile file at `.agentos/profile.yaml`.
 - Built-in profiles for Godot, bioinformatics, USMLE, Neocircuit, and data science.
+- Windows `agentos.cmd` installer shim and read-only environment diagnostics.
 
 ## Intentionally Stubbed
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from agentos.diagnostics.doctor import DoctorReport, run_doctor
 from agentos.memory.store import Memory, MemoryStore
 from agentos.policies.checker import PolicyChecker, PolicyResult, create_default_policies
 from agentos.sdd.generator import (
@@ -119,6 +120,14 @@ class LocalSDDService:
 
     def archive_change(self, change_name: str) -> SDDChange:
         return archive_change(self.root, change_name)
+
+
+class LocalDoctorService:
+    def __init__(self, root: Path) -> None:
+        self.root = root
+
+    def run(self) -> DoctorReport:
+        return run_doctor(self.root)
 
 
 class LocalRefinerService:

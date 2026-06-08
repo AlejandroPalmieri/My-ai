@@ -4,9 +4,11 @@
 
 - Branch: `main`
 - Remote tracking: `origin/main`
-- `git status`: clean at audit start
-- Test command run: `uv run --extra dev pytest -q`
-- Test result: `16 passed`
+- `git status`: active local changes for command shim and doctor command work
+- Test command run: `.\.venv\Scripts\pytest.exe`
+- Test result: `34 passed`
+- Lint command run: `.\.venv\Scripts\ruff.exe check .`
+- Lint result: `All checks passed`
 
 ## Current Modules Found
 
@@ -27,10 +29,12 @@
   - `skills/**/SKILL.md` scanner and registry writer.
 - `src/agentos/policies/checker.py`
   - Basic sensitive path and destructive command policy checker.
+- `src/agentos/diagnostics/doctor.py`
+  - Read-only environment diagnostics for Python, project root, local CLI executable, SQLite, FTS5, policy files, and Windows command shim setup.
 - `src/agentos/logging/traces.py`
   - Local JSONL trace logger.
 - `src/agentos/services/interfaces.py`
-  - MCP-ready protocol boundaries for memory, strategic brain, skills, policies, SDD, and refiner services.
+  - MCP-ready protocol boundaries for memory, strategic brain, skills, policies, SDD, doctor, and refiner services.
 - `src/agentos/services/local.py`
   - Local service adapters over implemented modules.
 - `src/agentos/logging/__init__.py`, `src/agentos/utils/__init__.py`
@@ -39,6 +43,7 @@
 ## Current CLI Commands Found
 
 - `agentos version`
+- `agentos doctor`
 - `agentos init`
 - `agentos memory add`
 - `agentos memory search`
@@ -48,13 +53,22 @@
 - `agentos memory export`
 - `agentos memory import`
 - `agentos sdd new`
+- `agentos sdd list`
+- `agentos sdd status`
+- `agentos sdd advance`
+- `agentos sdd archive`
 - `agentos skills scan`
+- `agentos skills list`
+- `agentos skills show`
+- `agentos skills validate`
 - `agentos policies check`
 
 ## Current Tests Found
 
 - `tests/test_cli.py`
-  - CLI smoke coverage for version, init, memory add/search, memory import/export, SDD, skills, policies, and trace event creation.
+  - CLI smoke coverage for version, doctor, init, memory add/search/list/get/delete/import/export, SDD, skills, policies, and trace event creation.
+- `tests/test_doctor.py`
+  - Environment diagnostic checks for healthy and missing executable states.
 - `tests/test_memory.py`
   - Memory add/search and project filtering.
 - `tests/test_memory_import_export.py`
@@ -76,7 +90,7 @@
 
 - Python package scaffold under `src/agentos`.
 - `pyproject.toml` with Python 3.11+, Typer, Rich, Pydantic, pytest, and Ruff.
-- Typer CLI with the MVP command surface and Phase 2 memory import/export.
+- Typer CLI with the MVP command surface, doctor diagnostics, and Phase 2 memory import/export.
 - SQLite technical memory under `.agentos/memory.db` with `schema_version`.
 - FTS5-backed memory search with fallback to LIKE search across project, title, kind, content, and tags.
 - SDD/OpenSpec artifact generator.
@@ -85,6 +99,7 @@
 - Local JSONL trace logging under `.agentos/traces/YYYY-MM-DD.jsonl`.
 - Project profile generation under `.agentos/profile.yaml`.
 - MCP-ready service interfaces and local adapters.
+- Read-only doctor diagnostics for local CLI setup and SQLite/FTS5 capability.
 - Developer documentation in `README.md`, `docs/architecture.md`, and `docs/roadmap.md`.
 - Pytest suite for current behavior.
 

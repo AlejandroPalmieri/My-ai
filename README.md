@@ -24,9 +24,25 @@ pytest
 
 If `python`, `agentos`, or `pytest` are not found, confirm the virtual environment is activated. See `docs/windows-powershell.md` for the full Windows workflow and fallback commands that use `.venv\Scripts` directly.
 
+To make `agentos` available in new terminals without activating `.venv` every time, run this once from the repository root:
+
+```powershell
+.\scripts\install-agentos-command.ps1
+```
+
+Open a new PowerShell terminal and run:
+
+```powershell
+agentos version
+```
+
+The installer writes a small `agentos.cmd` shim to your user `WindowsApps` directory that calls this repository's `.venv\Scripts\agentos.exe`. Because the project is installed in editable mode, normal source changes are reflected automatically. Re-run the installer after dependency, virtual environment, or CLI entrypoint changes.
+
 ## Commands
 
 ```powershell
+agentos version
+agentos doctor
 agentos init
 agentos memory add --project demo --title "Decision" --kind decision --content "Use SQLite for local memory." --tag sqlite --source architecture --confidence 0.9
 agentos memory search SQLite --project demo
@@ -47,6 +63,8 @@ agentos policies check --command "rm -rf project"
 `agentos init` also creates `.agentos/profile.yaml` with local project profiles for `godot`, `bioinformatics`, `usmle`, `neocircuit`, and `data-science`.
 
 Operational traces are written locally as JSONL under `.agentos/traces/YYYY-MM-DD.jsonl`.
+
+`agentos doctor` checks the local Python version, project root, repository-local CLI executable, SQLite, SQLite FTS5 availability, policy files, and the Windows `agentos.cmd` shim when running on Windows. Missing FTS5, policies, or shim configuration are reported as warnings; missing critical runtime pieces return a non-zero exit code.
 
 Memory commands print Rich tables by default. Use `--json` with `memory add`, `memory search`, `memory list`, `memory get`, and `memory delete` when structured output is needed.
 

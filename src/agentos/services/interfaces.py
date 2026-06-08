@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
+from agentos.diagnostics.doctor import DoctorReport
 from agentos.memory.store import Memory
 from agentos.policies.checker import PolicyResult
 from agentos.sdd.generator import SDDChange
@@ -74,6 +75,10 @@ class SDDService(Protocol):
     def advance_change(self, change_name: str, phase: str, force: bool = False) -> SDDChange: ...
 
     def archive_change(self, change_name: str) -> SDDChange: ...
+
+
+class DoctorService(Protocol):
+    def run(self) -> DoctorReport: ...
 
 
 class RefinerService(Protocol):

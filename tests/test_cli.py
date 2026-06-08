@@ -15,6 +15,18 @@ def test_version_command():
     assert "AgentOS Personal" in result.output
 
 
+def test_doctor_command_reports_environment(tmp_path):
+    venv_agentos = tmp_path / ".venv" / "Scripts" / "agentos.exe"
+    venv_agentos.parent.mkdir(parents=True)
+    venv_agentos.write_text("", encoding="utf-8")
+    result = runner.invoke(app, ["doctor", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "AgentOS Doctor" in result.output
+    assert "python" in result.output
+    assert "sqlite" in result.output
+
+
 def test_init_command_creates_local_structure(tmp_path):
     result = runner.invoke(app, ["init", "--root", str(tmp_path)])
 

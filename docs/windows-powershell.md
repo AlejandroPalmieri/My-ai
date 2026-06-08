@@ -41,6 +41,34 @@ Expected output:
 AgentOS Personal 0.1.0
 ```
 
+Run the local diagnostic command when setup or PATH behavior looks wrong:
+
+```powershell
+agentos doctor
+```
+
+The doctor command checks Python, the project root, `.venv\Scripts\agentos.exe`, SQLite, SQLite FTS5, policy files, and the Windows `agentos.cmd` shim.
+
+## Install The Persistent `agentos` Command
+
+After the project is installed, run this once from the repository root:
+
+```powershell
+.\scripts\install-agentos-command.ps1
+```
+
+This writes an `agentos.cmd` shim to your user `WindowsApps` directory, which is normally already on PATH. The shim points at this repository's `.venv\Scripts\agentos.exe`. Open a new PowerShell terminal and validate it:
+
+```powershell
+agentos version
+```
+
+Normal source changes are reflected because the package is installed in editable mode. Re-run the installer after dependency, virtual environment, or CLI entrypoint changes:
+
+```powershell
+.\scripts\install-agentos-command.ps1
+```
+
 ## Run Tests
 
 ```powershell
@@ -50,7 +78,7 @@ pytest
 Expected result:
 
 ```text
-16 passed
+34 passed
 ```
 
 ## Optional Ruff Check

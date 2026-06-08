@@ -9,7 +9,8 @@ def test_no_subcommand_starts_interactive_cli_and_exits_on_exit(tmp_path):
     result = runner.invoke(app, ["--root", str(tmp_path)], input="exit\n")
 
     assert result.exit_code == 0
-    assert "AgentOS Interactive CLI" in result.output
+    assert "AGENTOS" in result.output
+    assert "Workspace Overview" in result.output
     assert "Type 'help' for commands" in result.output
 
 
@@ -19,4 +20,5 @@ def test_entrypoint_forwards_unknown_options_to_interactive_cli(tmp_path, monkey
     main(["--root", str(tmp_path), "--model", "local", "--profile", "godot"])
 
     output = capsys.readouterr().out
+    assert "AGENTOS" in output
     assert "Forwarded options: --model local --profile godot" in output

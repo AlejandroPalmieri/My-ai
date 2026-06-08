@@ -49,6 +49,37 @@ agentos doctor
 
 The doctor command checks Python, the project root, `.venv\Scripts\agentos.exe`, SQLite, SQLite FTS5, policy files, and the Windows `agentos.cmd` shim.
 
+Launch the startup intro and terminal dashboard:
+
+```powershell
+agentos
+```
+
+Useful UI variants:
+
+```powershell
+agentos --no-dashboard
+agentos --plain
+agentos dashboard --theme zellij-neutral
+agentos ui themes
+```
+
+Run the experimental local MCP STDIO server:
+
+```powershell
+agentos mcp serve
+```
+
+This command is intended for MCP clients such as Codex. See `docs/mcp.md` for
+the local STDIO configuration.
+
+Index a local Markdown or text document into Strategic Brain v0:
+
+```powershell
+agentos brain ingest .\docs\strategy.md
+agentos brain search "planning layer"
+```
+
 ## Install The Persistent `agentos` Command
 
 After the project is installed, run this once from the repository root:
@@ -78,7 +109,7 @@ pytest
 Expected result:
 
 ```text
-36 passed
+69 passed
 ```
 
 ## Optional Ruff Check

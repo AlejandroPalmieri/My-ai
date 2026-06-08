@@ -1,0 +1,17 @@
+{
+  "name": "add-local-mcp-server",
+  "phase": "sync",
+  "archived": false,
+  "created_at": "2026-06-08T13:29:10.685167+00:00",
+  "updated_at": "2026-06-08T13:37:26.951067+00:00",
+  "phase_history": [
+    {
+      "phase": "init",
+      "at": "2026-06-08T13:29:10.685167+00:00"
+    },
+    {
+      "phase": "sync",
+      "at": "2026-06-08T13:37:26.951067+00:00"
+    }
+  ]
+}

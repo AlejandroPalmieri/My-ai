@@ -1,0 +1,5 @@
+approval_commands:
+  - git push
+  - pip install
+  - python -m pip install
+  - docker run

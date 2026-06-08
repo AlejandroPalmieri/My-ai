@@ -1,6 +1,13 @@
 destructive_commands:
   - rm -rf
+  - del /s /q
+  - Remove-Item -Recurse -Force
   - git push --force
+  - git reset --hard
+  - DROP DATABASE
+  - docker system prune
+  - format
+  - diskpart
   - drop database
   - database drop
   - database reset

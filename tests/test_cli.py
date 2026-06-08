@@ -27,11 +27,52 @@ def test_doctor_command_reports_environment(tmp_path):
     assert "sqlite" in result.output
 
 
+def test_profile_cli_init_list_show_set_validate(tmp_path):
+    init_result = runner.invoke(app, ["profile", "init", "--root", str(tmp_path)])
+    list_result = runner.invoke(app, ["profile", "list", "--root", str(tmp_path)])
+    show_result = runner.invoke(app, ["profile", "show", "--root", str(tmp_path)])
+    set_result = runner.invoke(app, ["profile", "set", "data-science", "--root", str(tmp_path)])
+    validate_result = runner.invoke(app, ["profile", "validate", "--root", str(tmp_path)])
+
+    assert init_result.exit_code == 0
+    assert list_result.exit_code == 0
+    assert "godot" in list_result.output
+    assert "default" in list_result.output
+    assert show_result.exit_code == 0
+    assert "Active profile" in show_result.output
+    assert set_result.exit_code == 0
+    assert "data-science" in set_result.output
+    assert validate_result.exit_code == 0
+    assert "valid" in validate_result.output
+
+
+def test_no_dashboard_flag_shows_banner_without_dashboard(tmp_path):
+    result = runner.invoke(
+        app,
+        ["--no-dashboard", "--root", str(tmp_path)],
+        input="exit\n",
+    )
+
+    assert result.exit_code == 0
+    assert "AGENTOS" in result.output
+    assert "Personal Agent Operating System" in result.output
+    assert "Workspace Overview" not in result.output
+
+
+def test_ui_themes_cli_lists_zellij_neutral(tmp_path):
+    result = runner.invoke(app, ["ui", "themes", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "zellij-neutral" in result.output
+
+
 def test_init_command_creates_local_structure(tmp_path):
     result = runner.invoke(app, ["init", "--root", str(tmp_path)])
 
     assert result.exit_code == 0
     assert (tmp_path / ".agentos").exists()
+    assert (tmp_path / ".agentos" / "brain").exists()
+    assert (tmp_path / ".agentos" / "config.yaml").exists()
     assert (tmp_path / ".agentos" / "profile.yaml").exists()
     assert (tmp_path / "policies" / "sensitive_paths.yaml").exists()
     assert (tmp_path / "policies" / "destructive_commands.yaml").exists()
@@ -65,9 +106,33 @@ def test_memory_add_and_search_commands(tmp_path):
     assert add_result.exit_code == 0
     assert search_result.exit_code == 0
     assert "CLI memory" in search_result.output
-    assert {"command_started", "memory_added", "search_performed", "command_completed"}.issubset(
+    assert {"command_started", "memory_added", "memory_searched", "command_completed"}.issubset(
         _trace_events(tmp_path)
     )
+
+
+def test_memory_add_uses_active_profile_when_project_omitted(tmp_path):
+    runner.invoke(app, ["profile", "init", "--root", str(tmp_path)])
+    runner.invoke(app, ["profile", "set", "usmle", "--root", str(tmp_path)])
+
+    add_result = runner.invoke(
+        app,
+        [
+            "memory",
+            "add",
+            "--root",
+            str(tmp_path),
+            "--title",
+            "Profile memory",
+            "--content",
+            "Use active profile memory project.",
+            "--json",
+        ],
+    )
+    payload = json.loads(add_result.output)
+
+    assert add_result.exit_code == 0
+    assert payload["project"] == "usmle"
 
 
 def test_memory_list_get_delete_and_json_commands(tmp_path):
@@ -155,6 +220,31 @@ def test_memory_export_and_import_commands(tmp_path):
     assert "Exported" in search_result.output
 
 
+def test_brain_ingest_search_list_show_commands(tmp_path):
+    source = tmp_path / "strategy.md"
+    source.write_text(
+        "# Strategy Notes\n\nAgentOS strategic brain indexes local documents.",
+        encoding="utf-8",
+    )
+
+    ingest_result = runner.invoke(app, ["brain", "ingest", str(source), "--root", str(tmp_path)])
+    list_result = runner.invoke(app, ["brain", "list", "--root", str(tmp_path)])
+    search_result = runner.invoke(app, ["brain", "search", "indexes", "--root", str(tmp_path)])
+
+    assert ingest_result.exit_code == 0
+    assert "Strategy Notes" in ingest_result.output
+    assert list_result.exit_code == 0
+    assert "Strategy Notes" in list_result.output
+    assert search_result.exit_code == 0
+    assert "Strategy Notes" in search_result.output
+
+    document_id = ingest_result.output.split("Ingested document ", 1)[1].split(":", 1)[0]
+    show_result = runner.invoke(app, ["brain", "show", document_id, "--root", str(tmp_path)])
+
+    assert show_result.exit_code == 0
+    assert "Strategy Notes" in show_result.output
+
+
 def test_sdd_skills_and_policies_commands(tmp_path):
     skill_dir = tmp_path / "skills" / "demo"
     skill_dir.mkdir(parents=True)
@@ -217,6 +307,57 @@ def test_skills_validate_cli_reports_invalid_skill(tmp_path):
 
     assert result.exit_code == 1
     assert "missing description" in result.output
+
+
+def test_policies_check_cli_prints_severity_and_matched_rule(tmp_path):
+    result = runner.invoke(
+        app,
+        [
+            "policies",
+            "check",
+            "--root",
+            str(tmp_path),
+            "--command",
+            "Remove-Item -Path .\\build -Recurse -Force",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "block" in result.output
+    assert "Remove-Item -Recurse -Force" in result.output
+
+
+def test_policies_list_and_explain_cli(tmp_path):
+    list_result = runner.invoke(app, ["policies", "list", "--root", str(tmp_path)])
+    explain_result = runner.invoke(app, ["policies", "explain", "--root", str(tmp_path)])
+
+    assert list_result.exit_code == 0
+    assert "sensitive_path" in list_result.output
+    assert "destructive_command" in list_result.output
+    assert explain_result.exit_code == 0
+    assert "Sensitive paths are blocked" in explain_result.output
+
+
+def test_traces_cli_list_show_tail_and_export(tmp_path):
+    runner.invoke(app, ["doctor", "--root", str(tmp_path)])
+    trace_date = datetime.now(UTC).date().isoformat()
+
+    list_result = runner.invoke(app, ["traces", "list", "--root", str(tmp_path)])
+    show_result = runner.invoke(
+        app,
+        ["traces", "show", "--date", trace_date, "--root", str(tmp_path)],
+    )
+    tail_result = runner.invoke(app, ["traces", "tail", "--root", str(tmp_path)])
+    export_result = runner.invoke(app, ["traces", "export", "--root", str(tmp_path)])
+
+    assert list_result.exit_code == 0
+    assert trace_date in list_result.output
+    assert show_result.exit_code == 0
+    assert '"event_type": "command_started"' in show_result.output
+    assert tail_result.exit_code == 0
+    assert "command_completed" in tail_result.output
+    assert export_result.exit_code == 0
+    assert all(json.loads(line) for line in export_result.output.splitlines() if line.strip())
 
 
 def _trace_events(root):

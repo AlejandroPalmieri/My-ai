@@ -3,27 +3,68 @@
 AgentOS Personal uses small Python modules under `src/agentos/` with explicit boundaries:
 
 - `cli`: Typer commands, terminal output, and the safe local interactive entrypoint.
-- `config`: project initialization helpers.
+- `config`: project initialization helpers and profile models.
 - `memory`: SQLite-backed technical memory with text IDs, schema versioning, FTS5 search when available, and LIKE fallback.
+- `brain`: SQLite-backed local strategic document index for Markdown and text documents.
 - `sdd`: SDD/OpenSpec workflow generation, metadata, phase advancement, and archive state.
 - `skills`: local `skills/**/SKILL.md` scanner and registry writer.
-- `policies`: simple local policy files and checker for sensitive paths and destructive commands.
+- `policies`: local policy files and checker for sensitive paths, destructive commands, approval warnings, severity, reasons, and matched rules.
 - `diagnostics`: read-only local health checks for CLI setup, SQLite/FTS5, policies, and Windows command discovery.
-- `logging`: placeholder package for future structured logging.
+- `logging`: local JSONL trace logging, redaction, and trace readers.
+- `mcp`: experimental local STDIO MCP adapter and JSON-RPC server.
+- `ui`: Rich-based terminal theme, banner, pane layout, and read-only dashboard rendering.
 - `utils`: placeholder package for shared helpers.
 - `services`: MCP-ready service interfaces and local adapters.
 
-The MVP is local-first and does not read secrets automatically. Policy checking is advisory and intentionally separate from any command execution because autonomous execution is out of scope.
+The MVP is local-first and does not read secrets automatically. Policy checking is intentionally separate from any command execution because autonomous execution is out of scope.
+
+## Service Boundaries
+
+The CLI resolves local dependencies through a lazy `ServiceContainer`:
+
+```text
+agentos CLI
+  -> ServiceContainer(root)
+      -> TechnicalMemoryService -> SQLite memory store
+      -> SDDService             -> OpenSpec/SDD generator
+      -> SkillRegistryService   -> local SKILL.md scanner
+      -> PolicyService          -> local policy checker
+      -> TraceService           -> local JSONL trace logger
+      -> ProfileService         -> .agentos/profile.yaml
+      -> StrategicBrainService  -> local document index plus TODO synthesis stub
+      -> RefinerService         -> TODO Continual Harness stub
+```
+
+Service protocols live in `src/agentos/services/interfaces.py`; local-first
+adapters live in `src/agentos/services/local.py`; the container lives in
+`src/agentos/services/container.py`. This keeps CLI handlers stable while future
+MCP, Engram, GBrain, Hermes, and Continual Harness integrations attach behind
+the same interfaces.
+
+Strategic brain v0 indexes local Markdown and text documents into
+`.agentos/brain/index.db`. It remains separate from technical memory and does
+not implement embeddings, PDF ingestion, graph reasoning, or LLM synthesis.
+Refiner behavior and strategic synthesis remain explicit TODO stubs.
 
 ## Phase 2 Boundaries
 
-Phase 2 adds service interfaces for `TechnicalMemoryService`, `StrategicBrainService`, `SkillRegistryService`, `PolicyService`, `SDDService`, and `RefinerService`. The local adapters call the existing SQLite memory, skill scanner, policy checker, and SDD generator. Strategic brain and refiner behavior remain explicit stubs so future GBrain and Continual Harness work can attach behind stable interfaces.
-
-The CLI writes local JSONL traces to `.agentos/traces/YYYY-MM-DD.jsonl` for command starts/completions, memory additions, searches, policy violations, and SDD change creation. These traces are local operational evidence, not autonomous self-improvement.
+The CLI writes local JSONL traces to `.agentos/traces/YYYY-MM-DD.jsonl` for command starts/completions/failures, memory additions/searches/deletes, policy checks/violations, skill scans, and SDD changes. These traces are local operational evidence, not autonomous self-improvement.
 
 Memory import/export uses JSON so local memories can move between workspaces without introducing a network dependency. Memories are stored under `.agentos/memory.db` in the `memories` table with `id`, `project`, `title`, `kind`, `content`, `tags`, `source`, `confidence`, `created_at`, and `updated_at`. The `schema_version` table records the local memory schema version and initialization is idempotent.
 
-Project profiles live at `.agentos/profile.yaml` and provide local presets for Godot, bioinformatics, USMLE, Neocircuit, and data science contexts.
+Strategic Brain document indexing stores `documents`, `chunks`, and reserved
+`links` under `.agentos/brain/index.db`. Search uses FTS5 when available and
+falls back to `LIKE`, matching the local-first behavior used by technical
+memory.
+
+Project profiles live at `.agentos/profile.yaml` and provide local presets for default, Godot, bioinformatics, USMLE, Neocircuit, and data science contexts. The active profile supplies `memory_project` for `memory add` when `--project` is omitted, and its `blocked_paths` extend local policy checks.
+
+UI settings live at `.agentos/config.yaml`. The built-in `zellij-neutral` theme renders a neutral dark Rich dashboard when `agentos` is run without a subcommand. Dashboard data collection is separate from rendering and only shows compact metadata such as memory titles, SDD phases, trace event names, and local file paths.
+
+The experimental MCP server runs over local STDIO via `agentos mcp serve`. It
+exposes selected service-container capabilities as tools and intentionally does
+not expose memory deletion or shell execution. The first version uses a small
+MCP-shaped JSON-RPC adapter instead of adding a Python MCP SDK dependency.
 
 ## SDD/OpenSpec Workflow
 
@@ -34,10 +75,15 @@ Valid phases are `init`, `explore`, `proposal`, `spec`, `design`, `tasks`, `appl
 ## Decisions
 
 - SQLite is the only storage dependency for technical memory in the MVP.
-- FTS5 is used opportunistically; systems without FTS5 fall back to `LIKE` queries across project, title, kind, content, and tags.
+- FTS5 is used opportunistically; systems without FTS5 fall back to `LIKE` queries for memory and strategic brain search.
 - YAML files are parsed with a tiny list-only parser to avoid adding another dependency in the first pass.
-- CLI commands call small service interfaces so future MCP, Hermes-style runtime, Engram memory, GBrain retrieval, and Continual Harness evaluation integrations can reuse the same boundaries.
+- CLI commands call the service container instead of concrete local adapters so future MCP, Hermes-style runtime, Engram memory, GBrain retrieval, and Continual Harness evaluation integrations can reuse the same boundaries.
 - SDD archive is metadata-only to preserve local audit history and avoid destructive file movement.
 - Windows command discovery uses `scripts/install-agentos-command.ps1` to write a small `agentos.cmd` shim in the user `WindowsApps` directory. The shim delegates to the repository-local `.venv\Scripts\agentos.exe`. The package remains installed in editable mode, so source changes update the CLI behavior without a global install.
 - `agentos doctor` is read-only diagnostic behavior. It reports warnings for optional or recoverable setup gaps such as missing FTS5, policy files, or Windows shim configuration, and exits non-zero only for failed critical checks.
 - The console-script entrypoint is `agentos.cli.app:main` rather than the raw Typer app. This wrapper detects invocations with no known subcommand and forwards root-level options to the interactive CLI before Typer command parsing runs.
+- Policy decisions use `allow`, `warn`, and `block`. Sensitive path and destructive command rules block; approval rules warn; safe inputs allow. The checker is local text analysis only and never executes checked commands.
+- Trace events use a stable JSONL schema with `id`, `timestamp`, `event_type`, `command`, `status`, `project`, `payload`, and `error`. Sensitive-looking values are redacted before writing.
+- Profile validation treats unknown preferred skill names as warnings so profile configuration can reference planned skills without failing the whole profile file.
+- The startup UI uses Rich, not Textual. It is read-only, local-first, and intentionally does not implement pane switching or external service calls yet.
+- The MCP server is STDIO-only and local by default. It exposes policy checking as a tool so MCP-compatible agents can ask AgentOS to evaluate sensitive paths or dangerous command text without executing it.

@@ -49,10 +49,26 @@ class TraceSummary(BaseModel):
     timestamp: str
 
 
+class SkillSummary(BaseModel):
+    name: str
+    path: str
+    valid: bool
+
+
+class PolicyViolationSummary(BaseModel):
+    command: str
+    status: str
+    matched_rule: str
+    timestamp: str
+
+
 class DashboardData(BaseModel):
     runtime: RuntimeInfo
+    memory_count: int
     recent_memories: list[MemorySummary]
     active_sdd_changes: list[SDDChangeSummary]
+    registered_skills: list[SkillSummary]
+    recent_policy_violations: list[PolicyViolationSummary]
     recent_traces: list[TraceSummary]
 
 
@@ -92,6 +108,10 @@ def render_navigation(theme: Theme) -> Panel:
 def render_workspace_overview(data: DashboardData, theme: Theme) -> Panel:
     table = Table.grid(expand=True)
     table.add_column(ratio=1)
+    table.add_row(_section_title("status", theme))
+    table.add_row(f"Memory count | {data.memory_count}")
+    table.add_row(f"Registered skills | {len(data.registered_skills)}")
+    table.add_row("")
     table.add_row(_section_title("recent memories", theme))
     if data.recent_memories:
         for memory in data.recent_memories:
@@ -106,7 +126,24 @@ def render_workspace_overview(data: DashboardData, theme: Theme) -> Panel:
     else:
         table.add_row(Text("No active changes", style=theme.style("muted")))
     table.add_row("")
-    table.add_row(_section_title("recent trace events", theme))
+    table.add_row(_section_title("registered skills", theme))
+    if data.registered_skills:
+        for skill in data.registered_skills[:5]:
+            valid = "valid" if skill.valid else "invalid"
+            table.add_row(f"{skill.name} | {valid}")
+    else:
+        table.add_row(Text("No registered skills", style=theme.style("muted")))
+    table.add_row("")
+    table.add_row(_section_title("recent policy violations", theme))
+    if data.recent_policy_violations:
+        for violation in data.recent_policy_violations:
+            table.add_row(
+                f"{violation.command} | {violation.status} | {violation.matched_rule}"
+            )
+    else:
+        table.add_row(Text("No recent policy violations", style=theme.style("muted")))
+    table.add_row("")
+    table.add_row(_section_title("latest trace events", theme))
     if data.recent_traces:
         for event in data.recent_traces:
             table.add_row(f"{event.event_type} | {event.command} | {event.status}")
@@ -148,7 +185,15 @@ def render_runtime_context(runtime: RuntimeInfo, theme: Theme) -> Panel:
 
 def render_bottom_bar(theme: Theme) -> RenderableType:
     text = Text()
-    for label in ["[q] quit", "[r] refresh", "[m] memory", "[s] sdd", "[k] skills", "[p] policies"]:
+    for label in [
+        "[q] quit",
+        "[tab] pane",
+        "[r] refresh",
+        "[b] backup",
+        "[e] eval",
+        "[k] scan skills",
+        "[m/s/p/t] focus",
+    ]:
         text.append(f" {label} ", style=theme.style("secondary"))
         text.append("|", style=theme.style("border"))
     text.rstrip()
@@ -186,6 +231,8 @@ def render_plain_dashboard(data: DashboardData) -> str:
         header,
         "Navigation: Memory, SDD, Skills, Policies, Traces, Profiles",
         "Workspace Overview",
+        f"Active profile: {data.runtime.active_profile}",
+        f"Memory count: {data.memory_count}",
         "Recent memories:",
     ]
     lines.extend(
@@ -197,7 +244,18 @@ def render_plain_dashboard(data: DashboardData) -> str:
     lines.extend(f"- {change.name} | {change.phase}" for change in data.active_sdd_changes)
     if not data.active_sdd_changes:
         lines.append("- none")
-    lines.append("Recent trace events:")
+    lines.append("Registered skills:")
+    lines.extend(f"- {skill.name} | {skill.path}" for skill in data.registered_skills[:10])
+    if not data.registered_skills:
+        lines.append("- none")
+    lines.append("Recent policy violations:")
+    lines.extend(
+        f"- {violation.command} | {violation.status} | {violation.matched_rule}"
+        for violation in data.recent_policy_violations
+    )
+    if not data.recent_policy_violations:
+        lines.append("- none")
+    lines.append("Latest trace events:")
     lines.extend(
         f"- {event.event_type} | {event.command} | {event.status}" for event in data.recent_traces
     )
@@ -211,7 +269,8 @@ def render_plain_dashboard(data: DashboardData) -> str:
             f"- skill registry path: {data.runtime.skill_registry_path}",
             f"- policy files: {len(data.runtime.policy_files)}",
             f"- warnings: {'; '.join(data.runtime.warnings) if data.runtime.warnings else 'none'}",
-            "[q] quit | [r] refresh | [m] memory | [s] sdd | [k] skills | [p] policies",
+            "[q] quit | [tab] pane | [r] refresh | [b] backup | [e] eval | "
+            "[k] scan skills | [m/s/p/t] focus",
         ]
     )
     return "\n".join(lines)

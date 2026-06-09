@@ -12,15 +12,18 @@ from agentos.cli.interactive import run_interactive_cli
 from agentos.config.profiles import ProjectProfile
 from agentos.config.project import init_project
 from agentos.config.settings import set_banner_visibility, set_theme
+from agentos.evals.runner import EvalRunner
 from agentos.logging.traces import (
     TraceEventType,
     TraceLogger,
 )
 from agentos.mcp.server import serve_stdio
+from agentos.refiner.analyzer import RefinerAnalysis
 from agentos.sdd.generator import InvalidPhaseTransitionError, InvalidSlugError
 from agentos.services.container import ServiceContainer, create_service_container
 from agentos.ui.banner import render_startup_banner
 from agentos.ui.dashboard import collect_dashboard_data, render_dashboard
+from agentos.ui.interactive import run_interactive_dashboard
 from agentos.ui.theme import list_themes, load_theme
 
 ROOT_CONTEXT_SETTINGS = {"allow_extra_args": True, "ignore_unknown_options": True}
@@ -37,6 +40,9 @@ traces_app = typer.Typer(help="Trace log commands.")
 profile_app = typer.Typer(help="Project profile commands.")
 ui_app = typer.Typer(help="Terminal UI commands.")
 mcp_app = typer.Typer(help="Experimental local MCP server commands.")
+eval_app = typer.Typer(help="Local evaluation commands.")
+refiner_app = typer.Typer(help="Controlled refiner proposal commands.")
+backup_app = typer.Typer(help="Local backup and rollback commands.")
 console = Console()
 RootOption = Annotated[Path, typer.Option("--root", help="Project root.")]
 TOP_LEVEL_COMMANDS = {
@@ -53,6 +59,9 @@ TOP_LEVEL_COMMANDS = {
     "dashboard",
     "ui",
     "mcp",
+    "eval",
+    "refiner",
+    "backup",
 }
 TYPER_ROOT_OPTIONS = {"--help", "-h", "--install-completion", "--show-completion"}
 STARTUP_BOOL_OPTIONS = {"--no-banner", "--no-dashboard", "--plain"}
@@ -202,9 +211,17 @@ def doctor(root: RootOption = Path(".")) -> None:
 def dashboard_command(
     theme: Annotated[str, typer.Option("--theme", help="Dashboard theme.")] = "zellij-neutral",
     plain: Annotated[bool, typer.Option("--plain", help="Use plain text output.")] = False,
+    interactive: Annotated[
+        bool,
+        typer.Option("--interactive", help="Enable keyboard-driven dashboard controls."),
+    ] = False,
+    once: Annotated[
+        bool,
+        typer.Option("--once", help="Render interactive dashboard once and exit."),
+    ] = False,
     root: RootOption = Path("."),
 ) -> None:
-    """Render the read-only terminal dashboard."""
+    """Render the terminal dashboard."""
     trace = _start_trace(root, "dashboard")
     try:
         ui_theme = load_theme(theme)
@@ -212,9 +229,20 @@ def dashboard_command(
         _fail_trace(trace, "dashboard", str(error))
         console.print(str(error))
         raise typer.Exit(1) from error
+    plain_output = plain or console.color_system is None
+    if interactive:
+        run_interactive_dashboard(root, console, ui_theme, plain=plain_output, once=once)
+        _complete_trace(trace, "dashboard", {"theme": ui_theme.name, "interactive": True})
+        return
     data = collect_dashboard_data(root)
     compact = console.width < 100
-    console.print(render_dashboard(data, ui_theme, compact=compact, plain=plain))
+    rendered = render_dashboard(
+        data,
+        ui_theme,
+        compact=compact,
+        plain=plain_output,
+    )
+    console.print(rendered, markup=not isinstance(rendered, str))
     _complete_trace(trace, "dashboard", {"theme": ui_theme.name})
 
 
@@ -294,6 +322,150 @@ def ui_banner(
 def mcp_serve(root: RootOption = Path(".")) -> None:
     """Serve AgentOS local capabilities over MCP STDIO."""
     serve_stdio(root)
+
+
+@eval_app.command("run")
+def eval_run(root: RootOption = Path(".")) -> None:
+    """Run local AgentOS eval cases and write a JSON result report."""
+    trace = _start_trace(root, "eval.run")
+    report = EvalRunner(root).run()
+    _print_eval_report(report)
+    _complete_trace(trace, "eval.run", {"passed": report.passed, **report.summary})
+    if not report.passed:
+        raise typer.Exit(1)
+
+
+@refiner_app.command("analyze")
+def refiner_analyze(root: RootOption = Path(".")) -> None:
+    """Analyze local traces for repeated failures and workflow friction."""
+    trace = _start_trace(root, "refiner.analyze")
+    analysis = _services(root).refiner.analyze_recent_traces()
+    _print_refiner_analysis(analysis)
+    _complete_trace(
+        trace,
+        "refiner.analyze",
+        {"finding_count": len(analysis.findings), "events_scanned": analysis.events_scanned},
+    )
+
+
+@refiner_app.command("propose")
+def refiner_propose(root: RootOption = Path(".")) -> None:
+    """Write a local markdown proposal from recent trace analysis."""
+    trace = _start_trace(root, "refiner.propose")
+    proposal = _services(root).refiner.create_proposal()
+    console.print(f"Proposal written: {proposal.path}")
+    _complete_trace(
+        trace,
+        "refiner.propose",
+        {"path": str(proposal.path), "finding_count": proposal.finding_count},
+    )
+
+
+@refiner_app.command("list-proposals")
+def refiner_list_proposals(root: RootOption = Path(".")) -> None:
+    """List local refiner proposal markdown files."""
+    trace = _start_trace(root, "refiner.list-proposals")
+    proposals = _services(root).refiner.list_proposals()
+    table = Table("Proposal")
+    for proposal in proposals:
+        table.add_row(str(proposal))
+    console.print(table)
+    for proposal in proposals:
+        console.print(proposal.name, markup=False)
+        console.print(str(proposal), markup=False)
+    _complete_trace(trace, "refiner.list-proposals", {"count": len(proposals)})
+
+
+@backup_app.command("create")
+def backup_create(root: RootOption = Path(".")) -> None:
+    """Create a local zip backup of AgentOS configuration and metadata."""
+    trace = _start_trace(root, "backup.create")
+    backup = _services(root).backups.create()
+    console.print(f"Backup created {backup.id} at {backup.path}")
+    _complete_trace(
+        trace,
+        "backup.create",
+        {"backup_id": backup.id, "file_count": backup.file_count},
+    )
+
+
+@backup_app.command("list")
+def backup_list(root: RootOption = Path(".")) -> None:
+    """List local backups."""
+    trace = _start_trace(root, "backup.list")
+    backups = _services(root).backups.list()
+    table = Table("ID", "Created", "Files", "Path")
+    for backup in backups:
+        table.add_row(
+            backup.id,
+            str(backup.metadata.get("created_at", "")),
+            str(backup.metadata.get("file_count", 0)),
+            str(backup.path),
+        )
+    console.print(table)
+    for backup in backups:
+        console.print(f"{backup.id} {backup.path}")
+    _complete_trace(trace, "backup.list", {"count": len(backups)})
+
+
+@backup_app.command("inspect")
+def backup_inspect(
+    backup_id: Annotated[str, typer.Argument(help="Backup ID.")],
+    root: RootOption = Path("."),
+) -> None:
+    """Inspect backup metadata and included files."""
+    trace = _start_trace(root, "backup.inspect")
+    try:
+        backup = _services(root).backups.inspect(backup_id)
+    except FileNotFoundError as error:
+        _fail_trace(trace, "backup.inspect", str(error))
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    _print_backup_inspection(backup)
+    _complete_trace(
+        trace,
+        "backup.inspect",
+        {"backup_id": backup.id, "file_count": len(backup.files)},
+    )
+
+
+@backup_app.command("restore")
+def backup_restore(
+    backup_id: Annotated[str, typer.Argument(help="Backup ID.")],
+    confirm: Annotated[bool, typer.Option("--confirm", help="Confirm restore.")] = False,
+    root: RootOption = Path("."),
+) -> None:
+    """Restore files from a local backup. Requires --confirm."""
+    trace = _start_trace(root, "backup.restore")
+    try:
+        result = _services(root).backups.restore(backup_id, confirm=confirm)
+    except (FileNotFoundError, ValueError) as error:
+        _fail_trace(trace, "backup.restore", str(error))
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    console.print(f"Restored {result.file_count} files from {result.backup_id}")
+    _complete_trace(
+        trace,
+        "backup.restore",
+        {"backup_id": result.backup_id, "file_count": result.file_count},
+    )
+
+
+@backup_app.command("prune")
+def backup_prune(
+    keep: Annotated[int, typer.Option("--keep", help="Number of backups to keep.")] = 10,
+    root: RootOption = Path("."),
+) -> None:
+    """Prune old local backups, keeping the most recent backups."""
+    trace = _start_trace(root, "backup.prune")
+    try:
+        removed = _services(root).backups.prune(keep=keep)
+    except ValueError as error:
+        _fail_trace(trace, "backup.prune", str(error))
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    console.print(f"Pruned {removed} backups; keep={keep}")
+    _complete_trace(trace, "backup.prune", {"removed": removed, "keep": keep})
 
 
 @profile_app.command("init")
@@ -925,6 +1097,9 @@ app.add_typer(traces_app, name="traces")
 app.add_typer(profile_app, name="profile")
 app.add_typer(ui_app, name="ui")
 app.add_typer(mcp_app, name="mcp")
+app.add_typer(eval_app, name="eval")
+app.add_typer(refiner_app, name="refiner")
+app.add_typer(backup_app, name="backup")
 
 
 def _services(root: Path) -> ServiceContainer:
@@ -1032,6 +1207,62 @@ def _print_policy_results(results) -> None:
             f"{result.severity.value} {result.rule_type or ''} "
             f"{result.matched_rule or ''}: {result.reason}"
         )
+
+
+def _print_eval_report(report) -> None:
+    table = Table("Case", "Status", "Duration", "Detail")
+    for case in report.cases:
+        table.add_row(case.name, case.status, f"{case.duration_ms}ms", case.detail)
+    console.print(table)
+    console.print(
+        f"Eval run {report.id}: passed={report.summary['passed']} "
+        f"failed={report.summary['failed']} result={report.result_path}"
+    )
+
+
+def _print_refiner_analysis(analysis: RefinerAnalysis) -> None:
+    table = Table("Type", "Severity", "Subject", "Count", "Recommendation")
+    for finding in analysis.findings:
+        table.add_row(
+            finding.finding_type,
+            finding.severity,
+            finding.subject,
+            str(finding.count),
+            finding.recommendation,
+        )
+    console.print(table)
+    for finding in analysis.findings:
+        console.print(
+            f"{finding.finding_type} {finding.severity} {finding.subject} "
+            f"count={finding.count}: {finding.detail}"
+        )
+    if not analysis.findings:
+        console.print("No refiner findings in recent traces.")
+    console.print(
+        f"Refiner analysis: events_scanned={analysis.events_scanned} "
+        f"findings={len(analysis.findings)}"
+    )
+
+
+def _print_backup_inspection(backup) -> None:
+    table = Table("Field", "Value")
+    table.add_row("id", backup.id)
+    table.add_row("path", str(backup.path))
+    table.add_row("created_at", str(backup.metadata.get("created_at", "")))
+    table.add_row("file_count", str(backup.metadata.get("file_count", 0)))
+    table.add_row("excluded_count", str(len(backup.excluded)))
+    console.print(table)
+    files = Table("Included Files")
+    for relative_path in backup.files:
+        files.add_row(relative_path)
+    console.print(files)
+    if backup.excluded:
+        excluded = Table("Excluded By Policy")
+        for relative_path in backup.excluded:
+            excluded.add_row(relative_path)
+        console.print(excluded)
+    for relative_path in backup.files:
+        console.print(relative_path)
 
 
 def _truncate(value: str, limit: int = 120) -> str:

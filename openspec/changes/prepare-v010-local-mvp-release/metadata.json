@@ -1,0 +1,17 @@
+{
+  "name": "prepare-v010-local-mvp-release",
+  "phase": "sync",
+  "archived": false,
+  "created_at": "2026-06-09T01:27:26.690574+00:00",
+  "updated_at": "2026-06-09T01:33:26.167148+00:00",
+  "phase_history": [
+    {
+      "phase": "init",
+      "at": "2026-06-09T01:27:26.690574+00:00"
+    },
+    {
+      "phase": "sync",
+      "at": "2026-06-09T01:33:26.167148+00:00"
+    }
+  ]
+}

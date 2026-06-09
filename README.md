@@ -1,8 +1,12 @@
 # AgentOS Personal
 
+## What AgentOS Is
+
 AgentOS Personal is a local-first foundation for a modular personal AI agent operating system. This MVP creates the repository structure, CLI, SQLite technical memory, SDD/OpenSpec artifact generation, skill registry scanning, policy checks, tests, and developer documentation.
 
-No LLM provider calls, autonomous command execution, external MCP integrations, vector search, or self-modifying prompts are implemented in this first pass.
+The v0.1.0 release is intended to be the first usable local MVP: a safe command-line workspace for technical memory, structured SDD changes, skills, policies, traces, profiles, backups, local evals, a basic dashboard, an experimental MCP boundary, and a simple strategic document index.
+
+No LLM provider calls, autonomous command execution, external hosted MCP integrations, vector search, or self-modifying prompts are implemented in this first pass.
 
 ## Windows PowerShell Setup
 
@@ -38,7 +42,30 @@ agentos version
 
 The installer writes a small `agentos.cmd` shim to your user `WindowsApps` directory that calls this repository's `.venv\Scripts\agentos.exe`. Because the project is installed in editable mode, normal source changes are reflected automatically. Re-run the installer after dependency, virtual environment, or CLI entrypoint changes.
 
-## Commands
+## Quickstart
+
+```powershell
+agentos init
+agentos doctor
+agentos profile show
+agentos memory add --title "First note" --content "AgentOS is running locally."
+agentos memory search AgentOS
+agentos dashboard --plain
+```
+
+For a richer terminal view:
+
+```powershell
+agentos dashboard --interactive
+```
+
+Before larger local changes:
+
+```powershell
+agentos backup create
+```
+
+## Core Commands
 
 ```powershell
 agentos
@@ -51,6 +78,15 @@ agentos version
 agentos doctor
 agentos init
 agentos mcp serve
+agentos eval run
+agentos refiner analyze
+agentos refiner propose
+agentos refiner list-proposals
+agentos backup create
+agentos backup list
+agentos backup inspect <backup-id>
+agentos backup restore <backup-id> --confirm
+agentos backup prune
 agentos dashboard --theme zellij-neutral
 agentos ui preview
 agentos ui themes
@@ -125,6 +161,36 @@ ui:
 
 Use `agentos --no-dashboard` to skip the dashboard for a faster startup, `agentos --plain` for plain text output, and `agentos ui themes` to list available themes. See `docs/ui.md`.
 
+## Dashboard
+
+Run the read-only local dashboard from PowerShell:
+
+```powershell
+agentos dashboard
+agentos dashboard --plain
+agentos dashboard --interactive
+agentos dashboard --interactive --plain
+```
+
+The dashboard shows the active profile, memory count, recent memories, active
+SDD changes, registered skills, recent policy violations, and latest trace
+events. `--plain` uses text-only output, and the command also falls back to
+plain output when terminal capabilities are limited.
+
+Interactive dashboard controls:
+
+- `tab` or `n`: move pane focus.
+- `m`, `s`, `p`, `t`, `o`: focus memory, SDD, policies, traces, or overview.
+- `r`: refresh dashboard data.
+- `b`: create a local backup.
+- `k`: scan skills and update `.agentos/skill-registry.json`.
+- `e`: run local evals.
+- `u`: explain why sensitive policy values remain redacted.
+- `q`: quit.
+
+The interactive dashboard still does not execute shell commands and does not
+reveal redacted sensitive values.
+
 `agentos doctor` checks the local Python version, project root, repository-local CLI executable, SQLite, SQLite FTS5 availability, policy files, and the Windows `agentos.cmd` shim when running on Windows. Missing FTS5, policies, or shim configuration are reported as warnings; missing critical runtime pieces return a non-zero exit code.
 
 Policy checks return `allow`, `warn`, or `block` with a reason and matched rule. See `docs/security.md` for examples and policy file details.
@@ -133,7 +199,27 @@ Memory commands print Rich tables by default. Use `--json` with `memory add`, `m
 
 Strategic Brain v0 indexes local `.md` and `.txt` documents under `.agentos/brain/index.db`. It uses SQLite FTS5 when available, falls back to `LIKE`, and stays separate from technical memory. No embeddings, LLM synthesis, or PDF ingestion are implemented yet. See `docs/strategic-brain.md`.
 
+Local evals run deterministic smoke checks for memory search, policy checks, skill validation, and SDD workflow. Results are stored under `.agentos/evals/results/`. See `docs/evals.md`.
+
+The controlled refiner analyzes recent trace logs and writes human-reviewed improvement proposals under `.agentos/refiner/proposals/`. It does not edit `AGENTS.md`, skills, policies, or source code. See `docs/refiner.md`.
+
+Local backups are zip archives under `.agentos/backups/` for AgentOS configuration and metadata. Restore requires `--confirm`, and sensitive paths are excluded by policy before files are read or added. See `docs/backups.md`.
+
 Skills can live in project-local `skills/**/SKILL.md` or Codex-style `.agents/skills/**/SKILL.md`. Run `agentos skills scan` to write `.agentos/skill-registry.json`, `agentos skills list` to inspect entries, and `agentos skills show <skill-name>` to load full skill content on demand.
+
+## Safety Notes
+
+- AgentOS is local-first and stores runtime data under `.agentos/`.
+- Do not commit `.agentos/`, local databases, traces, backups, `.env`, keys, tokens, credentials, banking files, or medical records.
+- Policy checks are local text analysis only and do not execute commands.
+- Destructive command patterns are blocked by policy checks.
+- Restore operations require explicit `--confirm`.
+- The dashboard does not reveal redacted sensitive values.
+- The experimental MCP server does not expose shell execution or delete operations.
+
+## Roadmap
+
+See `docs/roadmap.md` for implemented modules, intentionally stubbed areas, and next milestones. The next likely areas are stronger approval workflows, richer eval fixtures, formal MCP SDK integration if adopted, strategic brain entity models, and optional backup integrity/encryption.
 
 ## Tests
 

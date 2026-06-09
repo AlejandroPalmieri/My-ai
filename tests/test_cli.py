@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typer.testing import CliRunner
 
 from agentos.cli.app import app
+from agentos.logging.traces import TraceEventType, TraceLogger
 
 runner = CliRunner()
 
@@ -64,6 +65,28 @@ def test_ui_themes_cli_lists_zellij_neutral(tmp_path):
 
     assert result.exit_code == 0
     assert "zellij-neutral" in result.output
+
+
+def test_dashboard_cli_plain_smoke(tmp_path):
+    result = runner.invoke(app, ["dashboard", "--plain", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "AGENTOS PERSONAL" in result.output
+    assert "Memory count:" in result.output
+    assert "Registered skills:" in result.output
+    assert "Recent policy violations:" in result.output
+
+
+def test_dashboard_interactive_once_cli_smoke(tmp_path):
+    result = runner.invoke(
+        app,
+        ["dashboard", "--interactive", "--once", "--plain", "--root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "Interactive dashboard" in result.output
+    assert "[tab] next pane" in result.output
+    assert "[b] backup" in result.output
 
 
 def test_init_command_creates_local_structure(tmp_path):
@@ -358,6 +381,82 @@ def test_traces_cli_list_show_tail_and_export(tmp_path):
     assert "command_completed" in tail_result.output
     assert export_result.exit_code == 0
     assert all(json.loads(line) for line in export_result.output.splitlines() if line.strip())
+
+
+def test_eval_run_cli_smoke(tmp_path):
+    result = runner.invoke(app, ["eval", "run", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "Eval run" in result.output
+    assert "memory_search" in result.output
+    assert (tmp_path / ".agentos" / "evals" / "results").exists()
+
+
+def test_refiner_cli_analyze_propose_and_list(tmp_path):
+    trace = TraceLogger(tmp_path)
+    trace.log_event(
+        TraceEventType.COMMAND_FAILED,
+        command="memory.search",
+        status="failed",
+        error="query failed",
+    )
+    trace.log_event(
+        TraceEventType.COMMAND_FAILED,
+        command="memory.search",
+        status="failed",
+        error="query failed again",
+    )
+
+    analyze_result = runner.invoke(app, ["refiner", "analyze", "--root", str(tmp_path)])
+    propose_result = runner.invoke(app, ["refiner", "propose", "--root", str(tmp_path)])
+    list_result = runner.invoke(app, ["refiner", "list-proposals", "--root", str(tmp_path)])
+
+    assert analyze_result.exit_code == 0
+    assert "repeated_command_failures" in analyze_result.output
+    assert propose_result.exit_code == 0
+    assert "Proposal written" in propose_result.output
+    assert list_result.exit_code == 0
+    assert ".md" in list_result.output
+
+
+def test_backup_cli_create_inspect_restore_list_and_prune(tmp_path):
+    (tmp_path / ".agentos").mkdir()
+    (tmp_path / ".agentos" / "profile.yaml").write_text("name: default\n", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("# Instructions\n", encoding="utf-8")
+
+    create_result = runner.invoke(app, ["backup", "create", "--root", str(tmp_path)])
+    backup_id = create_result.output.split("Backup created ", 1)[1].split()[0]
+    (tmp_path / ".agentos" / "profile.yaml").write_text("name: changed\n", encoding="utf-8")
+
+    inspect_result = runner.invoke(
+        app,
+        ["backup", "inspect", backup_id, "--root", str(tmp_path)],
+    )
+    restore_rejected = runner.invoke(
+        app,
+        ["backup", "restore", backup_id, "--root", str(tmp_path)],
+    )
+    restore_result = runner.invoke(
+        app,
+        ["backup", "restore", backup_id, "--confirm", "--root", str(tmp_path)],
+    )
+    list_result = runner.invoke(app, ["backup", "list", "--root", str(tmp_path)])
+    prune_result = runner.invoke(app, ["backup", "prune", "--root", str(tmp_path)])
+
+    assert create_result.exit_code == 0
+    assert "Backup created" in create_result.output
+    assert inspect_result.exit_code == 0
+    assert ".agentos/profile.yaml" in inspect_result.output
+    assert restore_rejected.exit_code == 1
+    assert "--confirm" in restore_rejected.output
+    assert restore_result.exit_code == 0
+    assert (tmp_path / ".agentos" / "profile.yaml").read_text(encoding="utf-8") == (
+        "name: default\n"
+    )
+    assert list_result.exit_code == 0
+    assert backup_id in list_result.output
+    assert prune_result.exit_code == 0
+    assert "Pruned" in prune_result.output
 
 
 def _trace_events(root):

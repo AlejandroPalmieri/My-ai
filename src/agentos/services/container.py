@@ -5,6 +5,7 @@ from functools import cached_property
 from pathlib import Path
 
 from agentos.services.interfaces import (
+    BackupService,
     DoctorService,
     PolicyService,
     ProfileService,
@@ -16,6 +17,7 @@ from agentos.services.interfaces import (
     TraceService,
 )
 from agentos.services.local import (
+    LocalBackupService,
     LocalDoctorService,
     LocalPolicyService,
     LocalProfileService,
@@ -62,11 +64,15 @@ class ServiceContainer:
 
     @cached_property
     def refiner(self) -> RefinerService:
-        return LocalRefinerService()
+        return LocalRefinerService(self.root)
 
     @cached_property
     def doctor(self) -> DoctorService:
         return LocalDoctorService(self.root)
+
+    @cached_property
+    def backups(self) -> BackupService:
+        return LocalBackupService(self.root)
 
 
 def create_service_container(root: Path) -> ServiceContainer:

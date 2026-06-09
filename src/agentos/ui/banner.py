@@ -28,7 +28,10 @@ def render_startup_banner(
     runtime_panel.add_column(style=theme.style("text"))
     runtime_panel.add_row("version", runtime.version)
     runtime_panel.add_row("active profile", runtime.active_profile)
-    runtime_panel.add_row("current workspace", str(runtime.workspace))
+    runtime_panel.add_row(
+        "current workspace",
+        Text(str(runtime.workspace), overflow="fold", no_wrap=False),
+    )
     runtime_panel.add_row("memory status", runtime.memory_status)
     runtime_panel.add_row("skill registry status", runtime.skill_registry_status)
     runtime_panel.add_row("policy status", runtime.policy_status)

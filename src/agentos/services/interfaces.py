@@ -3,12 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from agentos.backups.manager import Backup, BackupInspection, RestoreResult
 from agentos.brain.store import BrainChunk, BrainDocument, BrainSearchResult
 from agentos.config.profiles import ProfileValidation, ProjectProfile
 from agentos.diagnostics.doctor import DoctorReport
 from agentos.logging.traces import TraceEvent, TraceLogger
 from agentos.memory.store import Memory
 from agentos.policies.checker import PolicyResult, PolicyRule
+from agentos.refiner.analyzer import RefinerAnalysis
+from agentos.refiner.proposals import Proposal
 from agentos.sdd.generator import SDDChange
 from agentos.skills.registry import SkillContent, SkillRegistry, SkillValidation
 
@@ -140,5 +143,24 @@ class DoctorService(Protocol):
 
 
 @runtime_checkable
+class BackupService(Protocol):
+    def create(self) -> Backup: ...
+
+    def list(self) -> list[BackupInspection]: ...
+
+    def inspect(self, backup_id: str) -> BackupInspection: ...
+
+    def restore(self, backup_id: str, confirm: bool = False) -> RestoreResult: ...
+
+    def prune(self, keep: int = 10) -> int: ...
+
+
+@runtime_checkable
 class RefinerService(Protocol):
     def analyze_trace(self, trace_path: Path) -> str: ...
+
+    def analyze_recent_traces(self) -> RefinerAnalysis: ...
+
+    def create_proposal(self) -> Proposal: ...
+
+    def list_proposals(self) -> list[Path]: ...

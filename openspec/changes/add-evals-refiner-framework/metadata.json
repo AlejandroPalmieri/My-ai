@@ -1,0 +1,17 @@
+{
+  "name": "add-evals-refiner-framework",
+  "phase": "sync",
+  "archived": false,
+  "created_at": "2026-06-08T14:03:17.889777+00:00",
+  "updated_at": "2026-06-08T20:27:52.392772+00:00",
+  "phase_history": [
+    {
+      "phase": "init",
+      "at": "2026-06-08T14:03:17.889777+00:00"
+    },
+    {
+      "phase": "sync",
+      "at": "2026-06-08T20:27:52.392772+00:00"
+    }
+  ]
+}

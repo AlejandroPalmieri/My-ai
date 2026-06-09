@@ -1,0 +1,17 @@
+{
+  "name": "add-interactive-dashboard-actions",
+  "phase": "sync",
+  "archived": false,
+  "created_at": "2026-06-08T21:06:31.683849+00:00",
+  "updated_at": "2026-06-09T01:19:32.886086+00:00",
+  "phase_history": [
+    {
+      "phase": "init",
+      "at": "2026-06-08T21:06:31.683849+00:00"
+    },
+    {
+      "phase": "sync",
+      "at": "2026-06-09T01:19:32.886086+00:00"
+    }
+  ]
+}

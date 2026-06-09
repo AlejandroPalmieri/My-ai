@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from agentos.backups.manager import Backup, BackupInspection, BackupManager, RestoreResult
 from agentos.brain.store import BrainChunk, BrainDocument, BrainSearchResult, StrategicBrainStore
 from agentos.config.profiles import (
     ProfileValidation,
@@ -28,6 +29,8 @@ from agentos.policies.checker import (
     PolicyRule,
     create_default_policies,
 )
+from agentos.refiner.analyzer import RefinerAnalysis, TraceRefiner
+from agentos.refiner.proposals import Proposal, ProposalWriter
 from agentos.sdd.generator import (
     SDDChange,
     advance_change,
@@ -262,9 +265,42 @@ class LocalDoctorService:
         return run_doctor(self.root)
 
 
+class LocalBackupService:
+    def __init__(self, root: Path) -> None:
+        self.manager = BackupManager(root)
+
+    def create(self) -> Backup:
+        return self.manager.create()
+
+    def list(self) -> list[BackupInspection]:
+        return self.manager.list()
+
+    def inspect(self, backup_id: str) -> BackupInspection:
+        return self.manager.inspect(backup_id)
+
+    def restore(self, backup_id: str, confirm: bool = False) -> RestoreResult:
+        return self.manager.restore(backup_id, confirm=confirm)
+
+    def prune(self, keep: int = 10) -> int:
+        return self.manager.prune(keep=keep)
+
+
 class LocalRefinerService:
+    def __init__(self, root: Path = Path(".")) -> None:
+        self.root = root
+
     def analyze_trace(self, trace_path: Path) -> str:
         return (
             "TODO: RefinerService is a Phase 2 service boundary stub for future "
             f"Continual Harness trace analysis integrations: {trace_path}"
         )
+
+    def analyze_recent_traces(self) -> RefinerAnalysis:
+        return TraceRefiner(self.root).analyze()
+
+    def create_proposal(self) -> Proposal:
+        analysis = self.analyze_recent_traces()
+        return ProposalWriter(self.root).write(analysis)
+
+    def list_proposals(self) -> list[Path]:
+        return ProposalWriter(self.root).list()

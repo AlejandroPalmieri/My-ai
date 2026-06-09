@@ -6,12 +6,15 @@ AgentOS Personal uses small Python modules under `src/agentos/` with explicit bo
 - `config`: project initialization helpers and profile models.
 - `memory`: SQLite-backed technical memory with text IDs, schema versioning, FTS5 search when available, and LIKE fallback.
 - `brain`: SQLite-backed local strategic document index for Markdown and text documents.
+- `backups`: local zip backup, inspect, restore, and prune behavior for AgentOS metadata.
 - `sdd`: SDD/OpenSpec workflow generation, metadata, phase advancement, and archive state.
 - `skills`: local `skills/**/SKILL.md` scanner and registry writer.
 - `policies`: local policy files and checker for sensitive paths, destructive commands, approval warnings, severity, reasons, and matched rules.
 - `diagnostics`: read-only local health checks for CLI setup, SQLite/FTS5, policies, and Windows command discovery.
+- `evals`: deterministic local eval runner for MVP memory, policy, skill, and SDD checks.
 - `logging`: local JSONL trace logging, redaction, and trace readers.
 - `mcp`: experimental local STDIO MCP adapter and JSON-RPC server.
+- `refiner`: controlled trace analysis and proposal generation without auto-edit behavior.
 - `ui`: Rich-based terminal theme, banner, pane layout, and read-only dashboard rendering.
 - `utils`: placeholder package for shared helpers.
 - `services`: MCP-ready service interfaces and local adapters.
@@ -32,7 +35,8 @@ agentos CLI
       -> TraceService           -> local JSONL trace logger
       -> ProfileService         -> .agentos/profile.yaml
       -> StrategicBrainService  -> local document index plus TODO synthesis stub
-      -> RefinerService         -> TODO Continual Harness stub
+      -> RefinerService         -> local trace analysis and proposal writer
+      -> BackupService          -> local zip backups and confirmed restore
 ```
 
 Service protocols live in `src/agentos/services/interfaces.py`; local-first
@@ -44,11 +48,27 @@ the same interfaces.
 Strategic brain v0 indexes local Markdown and text documents into
 `.agentos/brain/index.db`. It remains separate from technical memory and does
 not implement embeddings, PDF ingestion, graph reasoning, or LLM synthesis.
-Refiner behavior and strategic synthesis remain explicit TODO stubs.
+Strategic synthesis remains an explicit TODO stub.
 
 ## Phase 2 Boundaries
 
 The CLI writes local JSONL traces to `.agentos/traces/YYYY-MM-DD.jsonl` for command starts/completions/failures, memory additions/searches/deletes, policy checks/violations, skill scans, and SDD changes. These traces are local operational evidence, not autonomous self-improvement.
+
+Local eval results are written under `.agentos/evals/results/`. The first eval
+runner exercises memory search, policy checks, skill validation, and SDD
+workflow in isolated local workspaces.
+
+The controlled refiner reads recent local traces and detects repeated command
+failures, frequent policy violations, and memory searches that returned zero
+results. It writes markdown proposals under `.agentos/refiner/proposals/`.
+The refiner does not edit `AGENTS.md`, skills, policies, or source code, and
+human approval is required before any future implementation.
+
+Local backups are written as zip files under `.agentos/backups/`. Backup
+creation checks each candidate path against local policy rules before reading or
+adding it to the archive. Sensitive paths are excluded and recorded in backup
+metadata. Restore requires explicit `--confirm` and only writes files contained
+in the selected archive.
 
 Memory import/export uses JSON so local memories can move between workspaces without introducing a network dependency. Memories are stored under `.agentos/memory.db` in the `memories` table with `id`, `project`, `title`, `kind`, `content`, `tags`, `source`, `confidence`, `created_at`, and `updated_at`. The `schema_version` table records the local memory schema version and initialization is idempotent.
 
@@ -59,7 +79,7 @@ memory.
 
 Project profiles live at `.agentos/profile.yaml` and provide local presets for default, Godot, bioinformatics, USMLE, Neocircuit, and data science contexts. The active profile supplies `memory_project` for `memory add` when `--project` is omitted, and its `blocked_paths` extend local policy checks.
 
-UI settings live at `.agentos/config.yaml`. The built-in `zellij-neutral` theme renders a neutral dark Rich dashboard when `agentos` is run without a subcommand. Dashboard data collection is separate from rendering and only shows compact metadata such as memory titles, SDD phases, trace event names, and local file paths.
+UI settings live at `.agentos/config.yaml`. The built-in `zellij-neutral` theme renders a neutral dark Rich dashboard when `agentos` is run without a subcommand. Dashboard data collection is separate from rendering and only shows compact metadata such as memory titles, SDD phases, trace event names, and local file paths. The dashboard also has an optional Rich-based interactive mode with pane focus, refresh, backup creation, skill scanning, and eval runs. These actions call AgentOS local services directly and do not execute shell commands.
 
 The experimental MCP server runs over local STDIO via `agentos mcp serve`. It
 exposes selected service-container capabilities as tools and intentionally does
@@ -85,5 +105,8 @@ Valid phases are `init`, `explore`, `proposal`, `spec`, `design`, `tasks`, `appl
 - Policy decisions use `allow`, `warn`, and `block`. Sensitive path and destructive command rules block; approval rules warn; safe inputs allow. The checker is local text analysis only and never executes checked commands.
 - Trace events use a stable JSONL schema with `id`, `timestamp`, `event_type`, `command`, `status`, `project`, `payload`, and `error`. Sensitive-looking values are redacted before writing.
 - Profile validation treats unknown preferred skill names as warnings so profile configuration can reference planned skills without failing the whole profile file.
-- The startup UI uses Rich, not Textual. It is read-only, local-first, and intentionally does not implement pane switching or external service calls yet.
+- The startup UI uses Rich, not Textual. It is local-first and avoids external service calls.
+- The dashboard interactive mode uses Rich and local service calls instead of Textual. It supports pane focus and safe local actions, but still does not reveal redacted policy values or run arbitrary shell commands.
 - The MCP server is STDIO-only and local by default. It exposes policy checking as a tool so MCP-compatible agents can ask AgentOS to evaluate sensitive paths or dangerous command text without executing it.
+- The refiner is proposal-only. It analyzes trace evidence but has no production self-modification path.
+- Backup archives use zip for Windows compatibility. Restore requires explicit confirmation and prune keeps the newest 10 backups by default.

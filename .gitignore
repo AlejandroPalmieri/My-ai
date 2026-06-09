@@ -8,3 +8,25 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# Local secrets and credentials
+.env
+.env.*
+*.pem
+*.key
+id_rsa
+id_ed25519
+.ssh/
+credentials/
+secrets/
+
+# Local AgentOS/runtime data
+*.db
+*.sqlite
+*.sqlite3
+*.jsonl
+*.log
+memories.json
+export.json
+*.backup
+*.zip

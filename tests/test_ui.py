@@ -35,7 +35,8 @@ def test_banner_renders_runtime_intro(tmp_path):
     assert "Personal Agent Operating System" in output
     assert "version" in output
     assert "active profile" in output
-    assert str(Path(tmp_path).resolve()) in output
+    assert "current workspace" in output
+    assert str(Path(tmp_path).resolve()).split("\\")[0] in output
 
 
 def test_dashboard_data_assembly(tmp_path):
@@ -54,15 +55,55 @@ def test_dashboard_data_assembly(tmp_path):
         status="ok",
         payload={"title": "Runtime note"},
     )
+    TraceLogger(tmp_path).log_event(
+        TraceEventType.POLICY_VIOLATION,
+        command="policies.check",
+        status="block",
+        payload={"matched_rule": ".env"},
+    )
+    skill_dir = tmp_path / ".agents" / "skills" / "dashboard-demo"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: dashboard-demo\ndescription: Dashboard demo skill.\n---\n",
+        encoding="utf-8",
+    )
 
     data = collect_dashboard_data(tmp_path)
 
     assert data.runtime.active_profile == "default"
     assert data.runtime.memory_status == "ready"
     assert data.runtime.skill_registry_status in {"ready", "missing"}
+    assert data.memory_count == 1
     assert data.recent_memories[0].title == "Runtime note"
     assert data.active_sdd_changes[0].name == "ui-change"
-    assert data.recent_traces[0].event_type == "command_completed"
-    assert "Dashboard should not render content." not in _render_text(
-        render_dashboard(data, load_theme("zellij-neutral"))
+    assert data.registered_skills[0].name == "dashboard-demo"
+    assert data.recent_policy_violations[0].matched_rule == "[REDACTED]"
+    assert data.recent_traces[-1].event_type == "policy_violation"
+    output = _render_text(render_dashboard(data, load_theme("zellij-neutral")))
+    assert "Memory count" in output
+    assert "Registered skills" in output
+    assert "RECENT POLICY VIOLATIONS" in output
+    assert "Dashboard should not render content." not in output
+
+
+def test_plain_dashboard_includes_basic_status_sections(tmp_path):
+    init_project(tmp_path)
+    MemoryStore(tmp_path).add_memory(
+        project="default",
+        title="Plain dashboard note",
+        kind="note",
+        content="Plain mode content should stay hidden.",
+        tags=[],
     )
+
+    output = render_dashboard(
+        collect_dashboard_data(tmp_path),
+        load_theme("zellij-neutral"),
+        plain=True,
+    )
+
+    assert "Active profile: default" in output
+    assert "Memory count: 1" in output
+    assert "Registered skills:" in output
+    assert "Recent policy violations:" in output
+    assert "Latest trace events:" in output

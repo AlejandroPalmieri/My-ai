@@ -1,0 +1,17 @@
+{
+  "name": "add-local-backup-rollback",
+  "phase": "sync",
+  "archived": false,
+  "created_at": "2026-06-08T20:33:15.129483+00:00",
+  "updated_at": "2026-06-08T20:45:10.752322+00:00",
+  "phase_history": [
+    {
+      "phase": "init",
+      "at": "2026-06-08T20:33:15.129483+00:00"
+    },
+    {
+      "phase": "sync",
+      "at": "2026-06-08T20:45:10.752322+00:00"
+    }
+  ]
+}

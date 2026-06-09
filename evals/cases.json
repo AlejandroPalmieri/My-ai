@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {
+      "name": "memory_search",
+      "purpose": "Verify local technical memory add and search behavior."
+    },
+    {
+      "name": "policy_check",
+      "purpose": "Verify sensitive paths are blocked and safe commands are allowed."
+    },
+    {
+      "name": "skill_validation",
+      "purpose": "Verify a minimal valid SKILL.md passes registry validation."
+    },
+    {
+      "name": "sdd_workflow",
+      "purpose": "Verify SDD artifacts can be created and advanced locally."
+    }
+  ]
+}

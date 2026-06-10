@@ -37,6 +37,17 @@ Each event includes:
 - `skill_scan_completed`
 - `policy_violation`
 - `policy_checked`
+- `model_request_started`
+- `model_request_completed`
+- `model_request_failed`
+- `model_usage_updated`
+- `agent_started`
+- `agent_stopped`
+- `agent_state_cleared`
+- `interactive_message_sent`
+- `interactive_message_received`
+- `context_warning`
+- `context_compacted`
 
 ## Redaction
 

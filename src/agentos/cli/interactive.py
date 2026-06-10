@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from agentos import __version__
+from agentos.cli.interactive_chat import InteractiveChatSession
 from agentos.config.settings import load_config
 from agentos.ui.banner import render_startup_banner
 from agentos.ui.dashboard import collect_dashboard_data, render_dashboard
@@ -41,7 +41,11 @@ def run_interactive_cli(
         compact = _should_use_compact_layout(config.ui.compact_mode, console.width)
         console.print(render_dashboard(data, theme, compact=compact, plain=plain_mode))
 
-    console.print("AgentOS Interactive CLI")
+    session = InteractiveChatSession(
+        root,
+        max_history_messages=config.chat.max_history_messages,
+    )
+    console.print("AgentOS Interactive Model Chat")
     console.print("Type 'help' for commands, or 'exit' to quit.")
     if forwarded_args:
         console.print("Forwarded options: " + " ".join(forwarded_args))
@@ -53,21 +57,15 @@ def run_interactive_cli(
             console.print()
             break
 
-        normalized = command.strip().lower()
-        if normalized in {"exit", "quit"}:
+        result = session.handle_input(command)
+        if result.dashboard_requested:
+            data = collect_dashboard_data(root)
+            compact = _should_use_compact_layout(config.ui.compact_mode, console.width)
+            console.print(render_dashboard(data, theme, compact=compact, plain=plain_mode))
+        if result.output:
+            console.print(result.output, markup=False)
+        if result.should_exit:
             break
-        if normalized == "help":
-            _print_help(console)
-        elif normalized == "version":
-            console.print(f"AgentOS Personal {__version__}")
-        elif normalized == "doctor":
-            console.print(f"Run `agentos doctor --root {root}` for the full diagnostic report.")
-        elif normalized:
-            console.print(f"Unknown interactive command: {command}")
-
-
-def _print_help(console: Console) -> None:
-    console.print("Commands: help, version, doctor, exit")
 
 
 def _should_use_compact_layout(compact_mode: str, width: int) -> bool:

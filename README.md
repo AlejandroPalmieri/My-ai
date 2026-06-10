@@ -4,9 +4,9 @@
 
 AgentOS Personal is a local-first foundation for a modular personal AI agent operating system. This MVP creates the repository structure, CLI, SQLite technical memory, SDD/OpenSpec artifact generation, skill registry scanning, policy checks, tests, and developer documentation.
 
-The v0.1.0 release is intended to be the first usable local MVP: a safe command-line workspace for technical memory, structured SDD changes, skills, policies, traces, profiles, backups, local evals, a basic dashboard, an experimental MCP boundary, and a simple strategic document index.
+The v0.1.0 release is intended to be the first usable local MVP: a safe command-line workspace for technical memory, structured SDD changes, skills, policies, traces, profiles, model/provider configuration, backups, local evals, a basic dashboard, an experimental MCP boundary, and a simple strategic document index.
 
-No LLM provider calls, autonomous command execution, external hosted MCP integrations, vector search, or self-modifying prompts are implemented in this first pass.
+No real LLM provider calls, autonomous command execution, external hosted MCP integrations, vector search, or self-modifying prompts are implemented in this first pass.
 
 ## Windows PowerShell Setup
 
@@ -48,6 +48,7 @@ The installer writes a small `agentos.cmd` shim to your user `WindowsApps` direc
 agentos init
 agentos doctor
 agentos profile show
+agentos
 agentos memory add --title "First note" --content "AgentOS is running locally."
 agentos memory search AgentOS
 agentos dashboard --plain
@@ -77,6 +78,11 @@ agentos --model local --profile godot
 agentos version
 agentos doctor
 agentos init
+agentos models init
+agentos models status
+agentos chat once "Hello AgentOS"
+agentos agents status
+agentos usage summary
 agentos mcp serve
 agentos eval run
 agentos refiner analyze
@@ -98,6 +104,31 @@ agentos profile list
 agentos profile show
 agentos profile set usmle
 agentos profile validate
+agentos models init
+agentos models list
+agentos models show
+agentos models set local-stub
+agentos models status
+agentos models usage
+agentos models reset-usage --confirm
+agentos models effort list
+agentos models effort show high
+agentos models route list
+agentos models route set default_chat --model local-stub --effort medium
+agentos chat once "Explain AgentOS briefly."
+agentos chat once "Explain AgentOS briefly." --json
+agentos chat status
+agentos agents start --name Planner --role planning --task "Plan next change" --model local-stub
+agentos agents list
+agentos agents status
+agentos agents stop <agent-id>
+agentos agents clear --confirm
+agentos usage summary
+agentos usage today
+agentos usage by-model
+agentos usage by-agent
+agentos usage export --format json
+agentos usage reset --confirm
 agentos memory add --project demo --title "Decision" --kind decision --content "Use SQLite for local memory." --tag sqlite --source architecture --confidence 0.9
 agentos memory search SQLite --project demo
 agentos memory list
@@ -126,6 +157,20 @@ agentos traces export
 
 `agentos init` also creates `.agentos/profile.yaml` with local project profiles for `default`, `godot`, `bioinformatics`, `usmle`, `neocircuit`, and `data-science`.
 
+`agentos init` also creates `.agentos/models.yaml` with local model provider
+metadata and editable pricing estimates. API key values are not stored; AgentOS
+stores environment variable names only. `local-stub` works without network or
+API keys. See `docs/models.md`.
+
+`agentos chat once` sends one explicit user message, plus an optional `--system`
+prompt, to the active model profile. It does not automatically include local
+files, memories, traces, or secrets. The default `local-stub` provider works
+offline. See `docs/chat.md`.
+
+Usage accounting is stored locally in `.agentos/usage/usage.db`. It records
+token and estimated cost metadata by session, day, project/profile, model, and
+agent without storing prompt bodies. See `docs/usage.md`.
+
 Profiles control local work-mode defaults. For example:
 
 ```powershell
@@ -147,7 +192,11 @@ Operational traces are written locally as JSONL under `.agentos/traces/YYYY-MM-D
 
 Trace commands inspect local JSONL events: `agentos traces list`, `agentos traces show --date YYYY-MM-DD`, `agentos traces tail`, and `agentos traces export`. Trace payloads redact sensitive values before writing. See `docs/traces.md`.
 
-Running `agentos` without a subcommand shows the neutral AGENTOS startup intro and a read-only Zellij-inspired terminal dashboard, then starts the local interactive CLI. Unknown root-level options are forwarded to the interactive session so future model/profile/runtime flags can be handled there without breaking command parsing.
+Running `agentos` without a subcommand shows the neutral AGENTOS startup intro
+and a read-only Zellij-inspired terminal dashboard, then starts the interactive
+model chat loop. Unknown root-level options are forwarded to the interactive
+session so future model/profile/runtime flags can be handled there without
+breaking command parsing.
 
 UI settings live in `.agentos/config.yaml`:
 
@@ -157,9 +206,18 @@ ui:
   open_dashboard_on_start: true
   theme: zellij-neutral
   compact_mode: auto
+chat:
+  max_history_messages: 20
 ```
 
 Use `agentos --no-dashboard` to skip the dashboard for a faster startup, `agentos --plain` for plain text output, and `agentos ui themes` to list available themes. See `docs/ui.md`.
+
+Interactive chat commands include `/model list`, `/model set <profile>`,
+`/effort low|medium|high|max`, `/usage`, `/usage reset --confirm`, `/agents`,
+`/clear`, `/dashboard`, and `/memory search <query>`. Any other input is sent to
+the active model. AgentOS does not automatically include memory, brain
+documents, traces, or local files in prompts; retrieval-augmented chat is a
+future feature. See `docs/interactive-chat.md`.
 
 ## Dashboard
 
@@ -174,8 +232,22 @@ agentos dashboard --interactive --plain
 
 The dashboard shows the active profile, memory count, recent memories, active
 SDD changes, registered skills, recent policy violations, and latest trace
-events. `--plain` uses text-only output, and the command also falls back to
-plain output when terminal capabilities are limited.
+events. The bottom bar and startup panel also show the active model, provider,
+effort, context usage, cumulative input/output/total tokens, and estimated
+cost from local model metadata, plus current session and daily cost from local
+usage accounting. `--plain` uses text-only output, and the command also falls
+back to plain output when terminal capabilities are limited.
+The right-side pane shows active agents/subagents from the local runtime
+registry, with status, role, model profile, effort, current task, token counts,
+and estimated cost. See `docs/agents.md`.
+
+Example bottom status:
+
+```text
+[q] quit | [tab] pane | [r] refresh | [m] memory
+model: local-stub|provider: local|effort: low|ctx: 0.00%|tok: 0/10.0k|i/o/t: 0/0/0|cost: $0.000000
+session: $0.000000|today: $0.000000
+```
 
 Interactive dashboard controls:
 

@@ -12,8 +12,13 @@ class UISettings(BaseModel):
     compact_mode: str = "auto"
 
 
+class ChatSettings(BaseModel):
+    max_history_messages: int = 20
+
+
 class AgentOSConfig(BaseModel):
     ui: UISettings = UISettings()
+    chat: ChatSettings = ChatSettings()
 
 
 DEFAULT_CONFIG = AgentOSConfig()
@@ -35,7 +40,13 @@ def load_config(root: Path) -> AgentOSConfig:
 def read_config(path: Path) -> AgentOSConfig:
     if not path.exists():
         return DEFAULT_CONFIG.model_copy(deep=True)
-    return AgentOSConfig(ui=UISettings(**_parse_ui_block(path.read_text(encoding="utf-8"))))
+    content = path.read_text(encoding="utf-8")
+    return AgentOSConfig(
+        ui=UISettings(**_parse_block(content, "ui", DEFAULT_CONFIG.ui.model_dump())),
+        chat=ChatSettings(
+            **_parse_block(content, "chat", DEFAULT_CONFIG.chat.model_dump())
+        ),
+    )
 
 
 def write_config(path: Path, config: AgentOSConfig) -> None:
@@ -73,21 +84,23 @@ def _render_config(config: AgentOSConfig) -> str:
             f"  open_dashboard_on_start: {open_dashboard}",
             f"  theme: {config.ui.theme}",
             f"  compact_mode: {config.ui.compact_mode}",
+            "chat:",
+            f"  max_history_messages: {config.chat.max_history_messages}",
             "",
         ]
     )
 
 
-def _parse_ui_block(content: str) -> dict[str, object]:
-    values: dict[str, object] = DEFAULT_CONFIG.ui.model_dump()
-    in_ui = False
+def _parse_block(content: str, section: str, defaults: dict[str, object]) -> dict[str, object]:
+    values: dict[str, object] = dict(defaults)
+    in_section = False
     for raw_line in content.splitlines():
         if not raw_line.strip() or raw_line.lstrip().startswith("#"):
             continue
-        if not raw_line.startswith(" ") and raw_line.strip() == "ui:":
-            in_ui = True
+        if not raw_line.startswith(" ") and raw_line.strip() == f"{section}:":
+            in_section = True
             continue
-        if not in_ui:
+        if not in_section:
             continue
         if not raw_line.startswith(" "):
             break
@@ -104,6 +117,10 @@ def _parse_scalar(value: str) -> object:
         return True
     if normalized.lower() == "false":
         return False
+    try:
+        return int(normalized)
+    except ValueError:
+        pass
     return normalized
 
 

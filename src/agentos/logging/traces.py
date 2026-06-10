@@ -39,6 +39,17 @@ class TraceEventType(StrEnum):
     SKILL_SCAN_COMPLETED = "skill_scan_completed"
     POLICY_VIOLATION = "policy_violation"
     POLICY_CHECKED = "policy_checked"
+    MODEL_REQUEST_STARTED = "model_request_started"
+    MODEL_REQUEST_COMPLETED = "model_request_completed"
+    MODEL_REQUEST_FAILED = "model_request_failed"
+    MODEL_USAGE_UPDATED = "model_usage_updated"
+    AGENT_STARTED = "agent_started"
+    AGENT_STOPPED = "agent_stopped"
+    AGENT_STATE_CLEARED = "agent_state_cleared"
+    INTERACTIVE_MESSAGE_SENT = "interactive_message_sent"
+    INTERACTIVE_MESSAGE_RECEIVED = "interactive_message_received"
+    CONTEXT_WARNING = "context_warning"
+    CONTEXT_COMPACTED = "context_compacted"
 
 
 class TraceEvent(BaseModel):

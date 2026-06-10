@@ -8,6 +8,8 @@ from rich.console import Console
 from rich.table import Table
 
 from agentos import __version__
+from agentos.agents.registry import AgentRuntimeRegistry
+from agentos.agents.schemas import AgentKind
 from agentos.cli.interactive import run_interactive_cli
 from agentos.config.profiles import ProjectProfile
 from agentos.config.project import init_project
@@ -18,6 +20,17 @@ from agentos.logging.traces import (
     TraceLogger,
 )
 from agentos.mcp.server import serve_stdio
+from agentos.models.client import chat_once
+from agentos.models.config import (
+    create_default_model_config,
+    inspect_model_status,
+    load_model_config,
+    reset_usage,
+    set_active_model_profile,
+)
+from agentos.models.effort import EFFORT_PROFILES, get_effort_profile
+from agentos.models.pricing import format_estimated_cost
+from agentos.models.routing import load_routing_config, set_route
 from agentos.refiner.analyzer import RefinerAnalysis
 from agentos.sdd.generator import InvalidPhaseTransitionError, InvalidSlugError
 from agentos.services.container import ServiceContainer, create_service_container
@@ -25,6 +38,8 @@ from agentos.ui.banner import render_startup_banner
 from agentos.ui.dashboard import collect_dashboard_data, render_dashboard
 from agentos.ui.interactive import run_interactive_dashboard
 from agentos.ui.theme import list_themes, load_theme
+from agentos.usage.schemas import UsageSummary
+from agentos.usage.store import UsageStore
 
 ROOT_CONTEXT_SETTINGS = {"allow_extra_args": True, "ignore_unknown_options": True}
 app = typer.Typer(
@@ -43,6 +58,12 @@ mcp_app = typer.Typer(help="Experimental local MCP server commands.")
 eval_app = typer.Typer(help="Local evaluation commands.")
 refiner_app = typer.Typer(help="Controlled refiner proposal commands.")
 backup_app = typer.Typer(help="Local backup and rollback commands.")
+models_app = typer.Typer(help="Model provider configuration commands.")
+models_effort_app = typer.Typer(help="Model effort profile commands.")
+models_route_app = typer.Typer(help="Model routing rule commands.")
+chat_app = typer.Typer(help="Single-turn model chat commands.")
+agents_app = typer.Typer(help="Local agent runtime registry commands.")
+usage_app = typer.Typer(help="Token and cost usage accounting commands.")
 console = Console()
 RootOption = Annotated[Path, typer.Option("--root", help="Project root.")]
 TOP_LEVEL_COMMANDS = {
@@ -62,6 +83,10 @@ TOP_LEVEL_COMMANDS = {
     "eval",
     "refiner",
     "backup",
+    "models",
+    "chat",
+    "agents",
+    "usage",
 }
 TYPER_ROOT_OPTIONS = {"--help", "-h", "--install-completion", "--show-completion"}
 STARTUP_BOOL_OPTIONS = {"--no-banner", "--no-dashboard", "--plain"}
@@ -322,6 +347,551 @@ def ui_banner(
 def mcp_serve(root: RootOption = Path(".")) -> None:
     """Serve AgentOS local capabilities over MCP STDIO."""
     serve_stdio(root)
+
+
+@models_app.command("init")
+def models_init(root: RootOption = Path(".")) -> None:
+    """Create the local model provider configuration file."""
+    trace = _start_trace(root, "models.init")
+    path = create_default_model_config(root)
+    console.print(f"Model config initialized at {path}")
+    _complete_trace(trace, "models.init", {"path": str(path)})
+
+
+@models_effort_app.command("list")
+def models_effort_list(root: RootOption = Path(".")) -> None:
+    """List built-in effort profile definitions."""
+    trace = _start_trace(root, "models.effort.list")
+    table = Table("Effort", "Description", "Temperature", "Max Output", "Use")
+    for profile in EFFORT_PROFILES.values():
+        table.add_row(
+            profile.label,
+            profile.description,
+            str(profile.default_temperature),
+            str(profile.default_max_output_tokens),
+            profile.intended_use,
+        )
+    console.print(table)
+    for profile in EFFORT_PROFILES.values():
+        console.print(
+            f"{profile.label} temp={profile.default_temperature} "
+            f"max_output={profile.default_max_output_tokens}: {profile.intended_use}",
+            markup=False,
+        )
+    _complete_trace(trace, "models.effort.list", {"count": len(EFFORT_PROFILES)})
+
+
+@models_effort_app.command("show")
+def models_effort_show(
+    effort: Annotated[str, typer.Argument(help="Effort level.")],
+    root: RootOption = Path("."),
+) -> None:
+    """Show one effort profile definition."""
+    trace = _start_trace(root, "models.effort.show")
+    try:
+        profile = get_effort_profile(effort)
+    except KeyError as error:
+        _fail_trace(trace, "models.effort.show", str(error))
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    table = Table("Field", "Value")
+    for key, value in profile.model_dump().items():
+        table.add_row(key, str(value))
+    console.print(table)
+    _complete_trace(trace, "models.effort.show", {"effort": profile.label})
+
+
+@models_route_app.command("list")
+def models_route_list(root: RootOption = Path(".")) -> None:
+    """List local model routing rules."""
+    trace = _start_trace(root, "models.route.list")
+    config = load_routing_config(root)
+    table = Table("Route", "Model Profile", "Effort")
+    for route_name, route in sorted(config.routes.items()):
+        table.add_row(route_name, route.model_profile or "", route.effort)
+    console.print(table)
+    for route_name, route in sorted(config.routes.items()):
+        console.print(
+            f"{route_name} model={route.model_profile or ''} effort={route.effort}",
+            markup=False,
+        )
+    _complete_trace(trace, "models.route.list", {"count": len(config.routes)})
+
+
+@models_route_app.command("set")
+def models_route_set(
+    route_name: Annotated[str, typer.Argument(help="Route name.")],
+    model_profile_name: Annotated[
+        str,
+        typer.Option("--model", help="Model profile for this route."),
+    ],
+    effort: Annotated[str, typer.Option("--effort", help="Effort level.")],
+    root: RootOption = Path("."),
+) -> None:
+    """Set a local model routing rule."""
+    trace = _start_trace(root, "models.route.set")
+    try:
+        config = set_route(
+            root,
+            route_name,
+            model_profile=model_profile_name,
+            effort=effort,
+        )
+    except (KeyError, ValueError) as error:
+        _fail_trace(trace, "models.route.set", str(error))
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    route = config.routes[route_name]
+    console.print(
+        f"Route {route_name} set to model={route.model_profile or ''} effort={route.effort}",
+        markup=False,
+    )
+    _complete_trace(
+        trace,
+        "models.route.set",
+        {"route": route_name, "model_profile": route.model_profile or "", "effort": route.effort},
+    )
+
+
+@models_app.command("list")
+def models_list(root: RootOption = Path(".")) -> None:
+    """List local model providers and model profiles."""
+    trace = _start_trace(root, "models.list")
+    config = load_model_config(root)
+    providers = Table("Provider", "Kind", "Enabled", "Base URL", "API Key Env")
+    for provider in config.providers:
+        providers.add_row(
+            provider.name,
+            provider.kind,
+            str(provider.enabled),
+            provider.base_url or "",
+            provider.api_key_env or "",
+        )
+    profiles = Table(
+        "Active",
+        "Profile",
+        "Provider",
+        "Model",
+        "Effort",
+        "Context",
+        "Input $/1M",
+        "Output $/1M",
+        "Enabled",
+    )
+    for profile in config.model_profiles:
+        profiles.add_row(
+            "*" if profile.name == config.active.active_model_profile else "",
+            profile.name,
+            profile.provider,
+            profile.model,
+            profile.effort,
+            str(profile.context_window_tokens),
+            "n/a"
+            if profile.input_token_cost_per_1m is None
+            else str(profile.input_token_cost_per_1m),
+            "n/a"
+            if profile.output_token_cost_per_1m is None
+            else str(profile.output_token_cost_per_1m),
+            str(profile.enabled),
+        )
+    console.print(providers)
+    console.print(profiles)
+    for provider in config.providers:
+        console.print(
+            f"provider {provider.name} {provider.kind} enabled={provider.enabled}",
+            markup=False,
+        )
+    for profile in config.model_profiles:
+        console.print(
+            f"profile {profile.name} provider={profile.provider} model={profile.model} "
+            f"effort={profile.effort} enabled={profile.enabled}",
+            markup=False,
+        )
+    _complete_trace(
+        trace,
+        "models.list",
+        {"providers": len(config.providers), "profiles": len(config.model_profiles)},
+    )
+
+
+@models_app.command("show")
+def models_show(root: RootOption = Path(".")) -> None:
+    """Show active model configuration."""
+    trace = _start_trace(root, "models.show")
+    config = load_model_config(root)
+    table = Table("Field", "Value")
+    table.add_row("Active model profile", config.active.active_model_profile)
+    table.add_row("Active provider", config.active.active_provider)
+    table.add_row("Active model", config.active.active_model)
+    table.add_row("Effort", config.active.effort)
+    table.add_row("Context window tokens", str(config.active.context_window_tokens))
+    table.add_row("Context used tokens", str(config.active.context_used_tokens))
+    table.add_row("Context used percent", f"{config.active.context_used_percent:.2f}%")
+    table.add_row(
+        "Cumulative estimated cost",
+        format_estimated_cost(config.active.cumulative_estimated_cost_usd),
+    )
+    console.print(table)
+    _complete_trace(
+        trace,
+        "models.show",
+        {"active_model_profile": config.active.active_model_profile},
+    )
+
+
+@models_app.command("set")
+def models_set(
+    model_profile_name: Annotated[str, typer.Argument(help="Model profile name.")],
+    root: RootOption = Path("."),
+) -> None:
+    """Set the active model profile."""
+    trace = _start_trace(root, "models.set")
+    try:
+        config = set_active_model_profile(root, model_profile_name)
+    except (KeyError, ValueError) as error:
+        _fail_trace(trace, "models.set", str(error))
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    console.print(f"Active model profile set to {config.active.active_model_profile}")
+    _complete_trace(
+        trace,
+        "models.set",
+        {"active_model_profile": config.active.active_model_profile},
+    )
+
+
+@models_app.command("status")
+def models_status(root: RootOption = Path(".")) -> None:
+    """Inspect active provider readiness without reading secrets."""
+    trace = _start_trace(root, "models.status")
+    status = inspect_model_status(root)
+    table = Table("Field", "Value")
+    table.add_row("status", status.status)
+    table.add_row("active_model_profile", status.active_model_profile)
+    table.add_row("active_provider", status.active_provider)
+    table.add_row("active_model", status.active_model)
+    table.add_row("provider_kind", status.provider_kind)
+    table.add_row("api_key_env", status.api_key_env or "")
+    for warning in status.warnings:
+        table.add_row("warning", warning)
+    console.print(table)
+    _complete_trace(trace, "models.status", {"status": status.status})
+
+
+@models_app.command("usage")
+def models_usage(root: RootOption = Path(".")) -> None:
+    """Show cumulative local model usage estimates."""
+    trace = _start_trace(root, "models.usage")
+    active = load_model_config(root).active
+    usage_summary = UsageStore(root).summary()
+    table = Table("Field", "Value")
+    table.add_row("active_model_profile", active.active_model_profile)
+    table.add_row("context_used_tokens", str(active.context_used_tokens))
+    table.add_row("context_used_percent", f"{active.context_used_percent:.2f}%")
+    table.add_row("cumulative_input_tokens", str(active.cumulative_input_tokens))
+    table.add_row("cumulative_output_tokens", str(active.cumulative_output_tokens))
+    table.add_row("cumulative_total_tokens", str(active.cumulative_total_tokens))
+    table.add_row(
+        "cumulative_estimated_cost_usd",
+        format_estimated_cost(active.cumulative_estimated_cost_usd),
+    )
+    table.add_row("usage_db_total_tokens", str(usage_summary.total_tokens))
+    table.add_row(
+        "usage_db_estimated_cost",
+        format_estimated_cost(usage_summary.estimated_cost_usd),
+    )
+    console.print(table)
+    _complete_trace(trace, "models.usage", {"total_tokens": active.cumulative_total_tokens})
+
+
+@models_app.command("reset-usage")
+def models_reset_usage(
+    confirm: Annotated[bool, typer.Option("--confirm", help="Confirm usage reset.")] = False,
+    root: RootOption = Path("."),
+) -> None:
+    """Reset cumulative local model usage. Requires --confirm."""
+    trace = _start_trace(root, "models.reset-usage")
+    try:
+        reset_usage(root, confirm=confirm)
+        UsageStore(root).reset(confirm=confirm)
+    except ValueError as error:
+        _fail_trace(trace, "models.reset-usage", str(error))
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    console.print("Usage reset")
+    _complete_trace(trace, "models.reset-usage", {"reset": True})
+
+
+@chat_app.command("once")
+def chat_once_command(
+    message: Annotated[str, typer.Argument(help="User message to send.")],
+    model_profile_name: Annotated[
+        str | None,
+        typer.Option("--model", help="Model profile name to use for this request."),
+    ] = None,
+    effort: Annotated[
+        str | None,
+        typer.Option("--effort", help="Reasoning effort: low, medium, high, or max."),
+    ] = None,
+    system_prompt: Annotated[
+        str | None,
+        typer.Option("--system", help="Optional system prompt."),
+    ] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON output.")] = False,
+    root: RootOption = Path("."),
+) -> None:
+    """Send one explicit prompt to the active model profile."""
+    trace = _start_trace(root, "chat.once")
+    try:
+        response = chat_once(
+            root,
+            message=message,
+            model_profile_name=model_profile_name,
+            effort=effort,
+            system_prompt=system_prompt,
+        )
+    except (KeyError, ValueError) as error:
+        _fail_trace(trace, "chat.once", str(error))
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    if json_output:
+        typer.echo(json.dumps(response.model_dump(mode="json"), indent=2))
+    else:
+        console.print(response.text, markup=False)
+        console.print(
+            f"model={response.model_profile} provider={response.provider} "
+            f"effort={response.effort} tokens={response.usage.total_tokens} "
+            f"cost={format_estimated_cost(response.usage.estimated_cost_usd)}",
+            markup=False,
+        )
+    if response.status != "ok":
+        _fail_trace(trace, "chat.once", response.error or response.text)
+        raise typer.Exit(1)
+    _complete_trace(
+        trace,
+        "chat.once",
+        {"model_profile": response.model_profile, "total_tokens": response.usage.total_tokens},
+    )
+
+
+@chat_app.command("status")
+def chat_status(root: RootOption = Path(".")) -> None:
+    """Show chat provider readiness."""
+    trace = _start_trace(root, "chat.status")
+    status = inspect_model_status(root)
+    table = Table("Field", "Value")
+    table.add_row("status", status.status)
+    table.add_row("active_model_profile", status.active_model_profile)
+    table.add_row("active_provider", status.active_provider)
+    table.add_row("active_model", status.active_model)
+    table.add_row("provider_kind", status.provider_kind)
+    table.add_row("api_key_env", status.api_key_env or "")
+    for warning in status.warnings:
+        table.add_row("warning", warning)
+    console.print(table)
+    console.print(
+        f"chat {status.status} model={status.active_model_profile} "
+        f"provider={status.active_provider}",
+        markup=False,
+    )
+    _complete_trace(trace, "chat.status", {"status": status.status})
+
+
+@usage_app.command("summary")
+def usage_summary(root: RootOption = Path(".")) -> None:
+    """Show total local token and cost usage."""
+    trace = _start_trace(root, "usage.summary")
+    summary = UsageStore(root).summary()
+    _print_usage_summary_table([summary])
+    _complete_trace(trace, "usage.summary", {"total_tokens": summary.total_tokens})
+
+
+@usage_app.command("today")
+def usage_today(root: RootOption = Path(".")) -> None:
+    """Show today's local usage summary."""
+    trace = _start_trace(root, "usage.today")
+    summary = UsageStore(root).today_summary()
+    _print_usage_summary_table([summary])
+    _complete_trace(trace, "usage.today", {"total_tokens": summary.total_tokens})
+
+
+@usage_app.command("by-model")
+def usage_by_model(root: RootOption = Path(".")) -> None:
+    """Show local usage grouped by provider/model/profile."""
+    trace = _start_trace(root, "usage.by-model")
+    summaries = UsageStore(root).model_summary()
+    _print_usage_summary_table(summaries)
+    _complete_trace(trace, "usage.by-model", {"rows": len(summaries)})
+
+
+@usage_app.command("by-agent")
+def usage_by_agent(root: RootOption = Path(".")) -> None:
+    """Show local usage grouped by agent id."""
+    trace = _start_trace(root, "usage.by-agent")
+    summaries = UsageStore(root).agent_summary()
+    _print_usage_summary_table(summaries)
+    _complete_trace(trace, "usage.by-agent", {"rows": len(summaries)})
+
+
+@usage_app.command("export")
+def usage_export(
+    format_name: Annotated[
+        str,
+        typer.Option("--format", help="Export format. Currently only json."),
+    ] = "json",
+    root: RootOption = Path("."),
+) -> None:
+    """Export local usage data without prompt bodies."""
+    trace = _start_trace(root, "usage.export")
+    if format_name != "json":
+        _fail_trace(trace, "usage.export", f"Unsupported format: {format_name}")
+        console.print("Unsupported usage export format. Use --format json.")
+        raise typer.Exit(1)
+    payload = UsageStore(root).export_json()
+    typer.echo(payload, nl=False)
+    _complete_trace(trace, "usage.export", {"format": format_name})
+
+
+@usage_app.command("reset")
+def usage_reset(
+    confirm: Annotated[bool, typer.Option("--confirm", help="Confirm usage reset.")] = False,
+    root: RootOption = Path("."),
+) -> None:
+    """Reset local usage event history. Requires --confirm."""
+    trace = _start_trace(root, "usage.reset")
+    try:
+        UsageStore(root).reset(confirm=confirm)
+    except ValueError as error:
+        _fail_trace(trace, "usage.reset", str(error))
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    console.print("Usage reset")
+    _complete_trace(trace, "usage.reset", {"reset": True})
+
+
+@agents_app.command("list")
+def agents_list(root: RootOption = Path(".")) -> None:
+    """List local agent runtime records."""
+    trace = _start_trace(root, "agents.list")
+    agents = AgentRuntimeRegistry(root).list_agents()
+    _print_agents_table(agents)
+    _complete_trace(trace, "agents.list", {"count": len(agents)})
+
+
+@agents_app.command("status")
+def agents_status(root: RootOption = Path(".")) -> None:
+    """Show local active and recent agent runtime status."""
+    trace = _start_trace(root, "agents.status")
+    agents = AgentRuntimeRegistry(root).list_agents()
+    _print_agents_table(agents)
+    active_count = sum(
+        1 for agent in agents if agent.status.value in {"running", "waiting", "idle"}
+    )
+    console.print(f"agents active={active_count} total={len(agents)}", markup=False)
+    _complete_trace(trace, "agents.status", {"active": active_count, "total": len(agents)})
+
+
+@agents_app.command("start")
+def agents_start(
+    name: Annotated[str, typer.Option("--name", help="Agent name.")],
+    role: Annotated[str, typer.Option("--role", help="Agent role.")],
+    task: Annotated[str, typer.Option("--task", help="Current task summary.")],
+    model_profile_name: Annotated[
+        str,
+        typer.Option("--model", help="Model profile name to associate with this agent."),
+    ],
+    effort: Annotated[
+        str | None,
+        typer.Option("--effort", help="Reasoning effort label."),
+    ] = None,
+    kind: Annotated[
+        str,
+        typer.Option("--kind", help="Runtime kind: agent or subagent."),
+    ] = "agent",
+    parent_id: Annotated[
+        str | None,
+        typer.Option("--parent-id", help="Parent agent id for subagents."),
+    ] = None,
+    root: RootOption = Path("."),
+) -> None:
+    """Create a local runtime entry without executing autonomous work."""
+    trace = _start_trace(root, "agents.start")
+    try:
+        agent = AgentRuntimeRegistry(root).start_agent(
+            name=name,
+            role=role,
+            current_task=task,
+            model_profile=model_profile_name,
+            effort=effort,
+            kind=AgentKind(kind),
+            parent_id=parent_id,
+        )
+    except ValueError as error:
+        _fail_trace(trace, "agents.start", str(error))
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    trace.log_event(
+        TraceEventType.AGENT_STARTED,
+        command="agents.start",
+        status=agent.status.value,
+        payload={
+            "agent_id": agent.id,
+            "name": agent.name,
+            "role": agent.role,
+            "kind": agent.kind.value,
+            "model_profile": agent.model_profile,
+            "parent_id": agent.parent_id or "",
+        },
+    )
+    console.print(f"Started agent {agent.name} ({agent.status.value})", markup=False)
+    console.print(f"id={agent.id}", markup=False)
+    _complete_trace(trace, "agents.start", {"agent_id": agent.id})
+
+
+@agents_app.command("stop")
+def agents_stop(
+    agent_id: Annotated[str, typer.Argument(help="Agent id.")],
+    root: RootOption = Path("."),
+) -> None:
+    """Mark an agent runtime entry as completed."""
+    trace = _start_trace(root, "agents.stop")
+    try:
+        agent = AgentRuntimeRegistry(root).stop_agent(agent_id)
+    except KeyError as error:
+        _fail_trace(trace, "agents.stop", str(error))
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    trace.log_event(
+        TraceEventType.AGENT_STOPPED,
+        command="agents.stop",
+        status=agent.status.value,
+        payload={"agent_id": agent.id, "name": agent.name, "status": agent.status.value},
+    )
+    console.print(f"Stopped agent {agent.id} status={agent.status.value}", markup=False)
+    _complete_trace(trace, "agents.stop", {"agent_id": agent.id, "status": agent.status.value})
+
+
+@agents_app.command("clear")
+def agents_clear(
+    confirm: Annotated[bool, typer.Option("--confirm", help="Confirm clearing state.")] = False,
+    root: RootOption = Path("."),
+) -> None:
+    """Clear local agent runtime state. Requires --confirm."""
+    trace = _start_trace(root, "agents.clear")
+    try:
+        AgentRuntimeRegistry(root).clear(confirm=confirm)
+    except ValueError as error:
+        _fail_trace(trace, "agents.clear", str(error))
+        console.print(str(error))
+        raise typer.Exit(1) from error
+    trace.log_event(
+        TraceEventType.AGENT_STATE_CLEARED,
+        command="agents.clear",
+        status="ok",
+        payload={"cleared": True},
+    )
+    console.print("Cleared agent runtime state")
+    _complete_trace(trace, "agents.clear", {"cleared": True})
 
 
 @eval_app.command("run")
@@ -1100,6 +1670,28 @@ app.add_typer(mcp_app, name="mcp")
 app.add_typer(eval_app, name="eval")
 app.add_typer(refiner_app, name="refiner")
 app.add_typer(backup_app, name="backup")
+models_app.add_typer(models_effort_app, name="effort")
+models_app.add_typer(models_route_app, name="route")
+app.add_typer(models_app, name="models")
+app.add_typer(chat_app, name="chat")
+app.add_typer(agents_app, name="agents")
+app.add_typer(usage_app, name="usage")
+
+
+def _print_usage_summary_table(summaries: list[UsageSummary]) -> None:
+    table = Table("key", "events", "input_tokens", "output_tokens", "total_tokens", "cost")
+    if not summaries:
+        table.add_row("none", "0", "0", "0", "0", format_estimated_cost(None))
+    for summary in summaries:
+        table.add_row(
+            summary.key,
+            str(summary.event_count),
+            str(summary.input_tokens),
+            str(summary.output_tokens),
+            str(summary.total_tokens),
+            format_estimated_cost(summary.estimated_cost_usd),
+        )
+    console.print(table)
 
 
 def _services(root: Path) -> ServiceContainer:
@@ -1218,6 +1810,44 @@ def _print_eval_report(report) -> None:
         f"Eval run {report.id}: passed={report.summary['passed']} "
         f"failed={report.summary['failed']} result={report.result_path}"
     )
+
+
+def _print_agents_table(agents) -> None:
+    table = Table(
+        "ID",
+        "Name",
+        "Kind",
+        "Status",
+        "Role",
+        "Model",
+        "Effort",
+        "Parent",
+        "Task",
+        "Tokens",
+        "Cost",
+    )
+    for agent in agents:
+        table.add_row(
+            agent.id,
+            agent.name,
+            agent.kind.value,
+            agent.status.value,
+            agent.role,
+            agent.model_profile,
+            agent.effort,
+            agent.parent_id or "",
+            _truncate(agent.current_task, 80),
+            f"{agent.input_tokens}/{agent.output_tokens}",
+            format_estimated_cost(agent.estimated_cost_usd),
+        )
+    console.print(table)
+    for agent in agents:
+        console.print(
+            f"{agent.id} {agent.name} {agent.kind.value} {agent.status.value} "
+            f"role={agent.role} model={agent.model_profile} effort={agent.effort} "
+            f"parent={agent.parent_id or ''} task={agent.current_task}",
+            markup=False,
+        )
 
 
 def _print_refiner_analysis(analysis: RefinerAnalysis) -> None:

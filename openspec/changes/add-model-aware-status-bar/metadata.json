@@ -1,0 +1,8 @@
+{
+  "id": "add-model-aware-status-bar",
+  "title": "Add model-aware dashboard status bar",
+  "status": "in-progress",
+  "created_at": "2026-06-08",
+  "owner": "codex",
+  "scope": "ui"
+}

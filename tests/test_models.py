@@ -22,6 +22,7 @@ def test_models_yaml_creation_has_default_profiles(tmp_path):
         "openai-gpt-5-5-thinking",
         "openai-gpt-5-5",
         "openrouter-auto",
+        "anthropic-claude-sonnet",
         "ollama-local",
     }
     assert "OPENAI_API_KEY" in path.read_text(encoding="utf-8")

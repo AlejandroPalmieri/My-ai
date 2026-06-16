@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 ModelProviderKind = Literal[
     "openai_compatible",
     "openai",
+    "openrouter",
     "anthropic",
     "ollama",
     "local_stub",
@@ -20,7 +21,9 @@ class ModelProvider(BaseModel):
     base_url: str | None = None
     api_key_env: str | None = None
     enabled: bool = True
-    supports_streaming: bool = False
+    supports_streaming: bool | None = None
+    extra_headers: dict[str, str] = Field(default_factory=dict)
+    timeout_seconds: float = 60.0
 
 
 class ModelProfile(BaseModel):
@@ -80,6 +83,17 @@ class ChatRequest(BaseModel):
     effort: ModelEffort | None = None
 
 
+ProviderErrorCode = Literal[
+    "missing_api_key",
+    "network_error",
+    "auth_error",
+    "rate_limit",
+    "invalid_model",
+    "provider_error",
+    "unsupported_feature",
+]
+
+
 class ChatResponse(BaseModel):
     status: str = "ok"
     text: str
@@ -90,6 +104,7 @@ class ChatResponse(BaseModel):
     effort: ModelEffort
     usage: ChatUsage
     error: str | None = None
+    error_code: ProviderErrorCode | None = None
     streamed: bool = False
     stream_fallback: bool = False
 

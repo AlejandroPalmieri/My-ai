@@ -57,3 +57,25 @@ def test_models_cli_missing_api_key_warns_without_crashing(tmp_path, monkeypatch
     assert status_result.exit_code == 0
     assert "not configured" in status_result.output
     assert "OPENAI_API_KEY" in status_result.output
+
+
+def test_models_provider_cli_smoke(tmp_path, monkeypatch):
+    runner.invoke(app, ["models", "init", "--root", str(tmp_path)])
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    providers = runner.invoke(app, ["models", "providers", "--root", str(tmp_path)])
+    status = runner.invoke(app, ["models", "provider-status", "--root", str(tmp_path)])
+    test = runner.invoke(app, ["models", "test", "local-stub", "--root", str(tmp_path)])
+    stream_test = runner.invoke(
+        app,
+        ["models", "test", "local-stub", "--stream", "--root", str(tmp_path)],
+    )
+
+    assert providers.exit_code == 0
+    assert "openrouter" in providers.output
+    assert status.exit_code == 0
+    assert "OPENAI_API_KEY" in status.output
+    assert test.exit_code == 0
+    assert "provider test ok" in test.output
+    assert stream_test.exit_code == 0
+    assert "streamed=True" in stream_test.output

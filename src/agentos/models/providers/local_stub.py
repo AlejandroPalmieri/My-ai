@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agentos.models.providers.base import approximate_tokens
+from agentos.models.providers.base import BaseProviderAdapter, approximate_tokens
 from agentos.models.schemas import (
     ChatRequest,
     ChatResponse,
@@ -12,10 +12,13 @@ from agentos.models.schemas import (
 from agentos.models.usage import chat_usage_for_profile
 
 
-class LocalStubProvider:
+class LocalStubProvider(BaseProviderAdapter):
     supports_streaming = True
 
-    def complete(
+    def validate_config(self, provider: ModelProvider, profile: ModelProfile) -> str | None:
+        return None
+
+    def chat(
         self,
         request: ChatRequest,
         provider: ModelProvider,
@@ -43,13 +46,13 @@ class LocalStubProvider:
             usage=usage,
         )
 
-    def stream(
+    def stream_chat(
         self,
         request: ChatRequest,
         provider: ModelProvider,
         profile: ModelProfile,
     ):
-        response = self.complete(request, provider, profile)
+        response = self.chat(request, provider, profile)
         yield ChatStreamEvent(type="message_start")
         for chunk in _deterministic_chunks(response.text):
             yield ChatStreamEvent(type="content_delta", delta=chunk)

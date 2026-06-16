@@ -26,6 +26,10 @@ this metadata for a single explicit prompt.
 ```powershell
 agentos models init
 agentos models list
+agentos models providers
+agentos models provider-status
+agentos models test local-stub
+agentos models test local-stub --stream
 agentos models show
 agentos models set local-stub
 agentos models status
@@ -45,6 +49,7 @@ agentos chat status
 - `openai-gpt-5-5-thinking`
 - `openai-gpt-5-5`
 - `openrouter-auto`
+- `anthropic-claude-sonnet`
 - `ollama-local`
 
 `local-stub` is the default active profile. It works without network access and
@@ -118,6 +123,13 @@ agentos chat once "hello streaming" --stream --model local-stub
 ```
 
 See `docs/streaming-chat.md`.
+
+## Provider Adapters
+
+Provider-specific adapters live under `src/agentos/models/providers/` and are
+selected through `providers/factory.py`. They expose a shared interface for
+config validation, chat, streaming chat, usage parsing/estimation, and normalized
+errors. See `docs/providers.md`.
 
 ## Effort And Routing
 

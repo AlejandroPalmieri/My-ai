@@ -30,6 +30,7 @@ from agentos.models.config import (
 )
 from agentos.models.effort import EFFORT_PROFILES, get_effort_profile
 from agentos.models.pricing import format_estimated_cost
+from agentos.models.providers.factory import provider_adapter
 from agentos.models.routing import load_routing_config, set_route
 from agentos.refiner.analyzer import RefinerAnalysis
 from agentos.sdd.generator import InvalidPhaseTransitionError, InvalidSlugError
@@ -578,6 +579,92 @@ def models_status(root: RootOption = Path(".")) -> None:
     _complete_trace(trace, "models.status", {"status": status.status})
 
 
+@models_app.command("providers")
+def models_providers(root: RootOption = Path(".")) -> None:
+    """List configured providers and declared capabilities."""
+    trace = _start_trace(root, "models.providers")
+    config = load_model_config(root)
+    table = Table("Provider", "Kind", "Enabled", "Streaming", "Base URL", "API Key Env")
+    for provider in config.providers:
+        table.add_row(
+            provider.name,
+            provider.kind,
+            str(provider.enabled),
+            str(_effective_provider_streaming(provider)),
+            provider.base_url or "",
+            provider.api_key_env or "",
+        )
+    console.print(table)
+    for provider in config.providers:
+        console.print(
+            f"provider={provider.name} kind={provider.kind} "
+            f"streaming={_effective_provider_streaming(provider)} enabled={provider.enabled}",
+            markup=False,
+        )
+    _complete_trace(trace, "models.providers", {"providers": len(config.providers)})
+
+
+@models_app.command("provider-status")
+def models_provider_status(root: RootOption = Path(".")) -> None:
+    """Validate configured providers without reading or printing secrets."""
+    trace = _start_trace(root, "models.provider-status")
+    config = load_model_config(root)
+    table = Table("Provider", "Kind", "Status", "Streaming", "Detail")
+    for provider in config.providers:
+        profile = _first_profile_for_provider(config.model_profiles, provider.name)
+        detail = "no model profile configured"
+        status = "not configured"
+        if profile is not None:
+            detail = provider_adapter(provider).validate_config(provider, profile) or "configured"
+            status = "configured" if detail == "configured" else "not configured"
+        table.add_row(
+            provider.name,
+            provider.kind,
+            status,
+            str(_effective_provider_streaming(provider)),
+            detail,
+        )
+    console.print(table)
+    _complete_trace(
+        trace,
+        "models.provider-status",
+        {"providers": len(config.providers)},
+    )
+
+
+@models_app.command("test")
+def models_test(
+    model_profile_name: Annotated[str, typer.Argument(help="Model profile name to test.")],
+    stream: Annotated[bool, typer.Option("--stream", help="Test streaming path.")] = False,
+    root: RootOption = Path("."),
+) -> None:
+    """Send a safe provider smoke-test prompt."""
+    trace = _start_trace(root, "models.test")
+    response = chat_once(
+        root,
+        message="AgentOS provider smoke test.",
+        model_profile_name=model_profile_name,
+        stream=stream,
+        on_delta=_print_stream_delta if stream else None,
+    )
+    if response.streamed:
+        console.print()
+    if response.status != "ok":
+        console.print(response.text, markup=False)
+        _fail_trace(trace, "models.test", response.error or response.text)
+        raise typer.Exit(1)
+    console.print(
+        f"provider test ok model={response.model_profile} provider={response.provider} "
+        f"streamed={response.streamed} tokens={response.usage.total_tokens}",
+        markup=False,
+    )
+    _complete_trace(
+        trace,
+        "models.test",
+        {"model_profile": response.model_profile, "streamed": response.streamed},
+    )
+
+
 @models_app.command("usage")
 def models_usage(root: RootOption = Path(".")) -> None:
     """Show cumulative local model usage estimates."""
@@ -685,6 +772,26 @@ def chat_once_command(
 
 def _print_stream_delta(delta: str) -> None:
     console.print(delta, markup=False, end="")
+
+
+def _first_profile_for_provider(profiles, provider_name: str):
+    for profile in profiles:
+        if profile.provider == provider_name:
+            return profile
+    return None
+
+
+def _effective_provider_streaming(provider) -> bool:
+    if provider.supports_streaming is not None:
+        return provider.supports_streaming
+    return provider.kind in {
+        "local_stub",
+        "openai",
+        "openai_compatible",
+        "openrouter",
+        "anthropic",
+        "ollama",
+    }
 
 
 @chat_app.command("status")

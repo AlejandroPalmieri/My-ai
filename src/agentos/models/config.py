@@ -36,7 +36,9 @@ def read_model_config(path: Path) -> ModelConfig:
 
 def write_model_config(path: Path, config: ModelConfig) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_render_model_config(config), encoding="utf-8")
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    temp_path.write_text(_render_model_config(config), encoding="utf-8")
+    temp_path.replace(path)
 
 
 def set_active_model_profile(root: Path, profile_name: str) -> ModelConfig:
@@ -105,18 +107,31 @@ def default_model_config() -> ModelConfig:
         ModelProvider(
             name="openai",
             kind="openai",
+            base_url="https://api.openai.com/v1",
             api_key_env="OPENAI_API_KEY",
             supports_streaming=True,
         ),
-        ModelProvider(name="anthropic", kind="anthropic", api_key_env="ANTHROPIC_API_KEY"),
+        ModelProvider(
+            name="anthropic",
+            kind="anthropic",
+            base_url="https://api.anthropic.com/v1",
+            api_key_env="ANTHROPIC_API_KEY",
+            supports_streaming=True,
+        ),
         ModelProvider(
             name="openrouter",
-            kind="openai_compatible",
+            kind="openrouter",
             base_url="https://openrouter.ai/api/v1",
             api_key_env="OPENROUTER_API_KEY",
             supports_streaming=True,
+            extra_headers={"HTTP-Referer": "https://github.com/AlejandroPalmieri/My-ai"},
         ),
-        ModelProvider(name="ollama", kind="ollama", base_url="http://localhost:11434"),
+        ModelProvider(
+            name="ollama",
+            kind="ollama",
+            base_url="http://localhost:11434/v1",
+            supports_streaming=True,
+        ),
     ]
     profiles = [
         ModelProfile(
@@ -149,6 +164,13 @@ def default_model_config() -> ModelConfig:
             model="auto",
             effort="medium",
             context_window_tokens=128_000,
+        ),
+        ModelProfile(
+            name="anthropic-claude-sonnet",
+            provider="anthropic",
+            model="claude-sonnet-4-20250514",
+            effort="medium",
+            context_window_tokens=200_000,
         ),
         ModelProfile(
             name="ollama-local",
@@ -281,6 +303,8 @@ def _render_scalar(value: object) -> str:
         return "null"
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, dict):
+        return json.dumps(value, sort_keys=True)
     return str(value)
 
 
@@ -292,6 +316,11 @@ def _parse_scalar(value: str) -> object:
         return True
     if normalized.lower() == "false":
         return False
+    if normalized.startswith("{") and normalized.endswith("}"):
+        try:
+            return json.loads(normalized)
+        except json.JSONDecodeError:
+            return {}
     try:
         return int(normalized)
     except ValueError:

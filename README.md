@@ -97,6 +97,9 @@ agentos doctor
 agentos init
 agentos models init
 agentos models status
+agentos models providers
+agentos models provider-status
+agentos models test local-stub
 agentos chat once "Hello AgentOS"
 agentos chat once "Hello AgentOS" --stream
 agentos chat once "Hello AgentOS" --no-stream
@@ -125,8 +128,11 @@ agentos profile set usmle
 agentos profile validate
 agentos models init
 agentos models list
+agentos models providers
+agentos models provider-status
 agentos models show
 agentos models set local-stub
+agentos models test local-stub --stream
 agentos models status
 agentos models usage
 agentos models reset-usage --confirm
@@ -179,7 +185,7 @@ agentos traces export
 `agentos init` also creates `.agentos/models.yaml` with local model provider
 metadata and editable pricing estimates. API key values are not stored; AgentOS
 stores environment variable names only. `local-stub` works without network or
-API keys. See `docs/models.md`.
+API keys. See `docs/models.md` and `docs/providers.md`.
 
 `agentos chat once` sends one explicit user message, plus an optional `--system`
 prompt, to the active model profile. It supports `--stream` and `--no-stream`,

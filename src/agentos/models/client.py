@@ -11,8 +11,7 @@ from agentos.models.config import (
     set_active_model_profile,
 )
 from agentos.models.providers.base import approximate_tokens
-from agentos.models.providers.local_stub import LocalStubProvider
-from agentos.models.providers.openai_compatible import OpenAICompatibleProvider
+from agentos.models.providers.factory import provider_adapter
 from agentos.models.routing import effective_effort, effective_model_profile
 from agentos.models.schemas import (
     ChatRequest,
@@ -63,14 +62,14 @@ def chat_once(
             "effort": request.effort or profile.effort,
         },
     )
-    client = _provider_client(provider)
+    client = provider_adapter(provider)
     can_stream = getattr(client, "supports_streaming", False) and _provider_supports_streaming(
         provider
     )
     if stream and can_stream:
         response = _complete_streaming(client, request, provider, profile, trace, on_delta)
     else:
-        response = client.complete(request, provider, profile)
+        response = client.chat(request, provider, profile)
         response.stream_fallback = stream
     if response.status == "ok":
         _, usage_event = record_model_usage(
@@ -134,7 +133,7 @@ def _complete_streaming(
     )
     chunks: list[str] = []
     usage: ChatUsage | None = None
-    for event in client.stream(request, provider, profile):
+    for event in client.stream_chat(request, provider, profile):
         if event.type == "content_delta":
             chunks.append(event.delta)
             if on_delta:
@@ -202,19 +201,16 @@ def _complete_streaming(
     )
 
 
-def _provider_client(provider: ModelProvider):
-    if provider.kind == "local_stub":
-        return LocalStubProvider()
-    if provider.kind in {"openai_compatible", "openai"}:
-        return OpenAICompatibleProvider()
-    return OpenAICompatibleProvider()
-
-
 def _provider_supports_streaming(provider: ModelProvider) -> bool:
-    return provider.supports_streaming or provider.kind in {
+    if provider.supports_streaming is not None:
+        return provider.supports_streaming
+    return provider.kind in {
         "local_stub",
         "openai",
         "openai_compatible",
+        "openrouter",
+        "anthropic",
+        "ollama",
     }
 
 

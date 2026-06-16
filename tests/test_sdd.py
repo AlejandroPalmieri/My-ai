@@ -61,3 +61,25 @@ def test_list_and_archive_changes(tmp_path):
     assert archived.archived is True
     assert changes[0].name == "archive-me"
     assert changes[0].archived is True
+
+
+def test_list_changes_accepts_legacy_metadata(tmp_path):
+    change_dir = tmp_path / "openspec" / "changes" / "legacy-change"
+    change_dir.mkdir(parents=True)
+    (change_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "id": "legacy-change",
+                "title": "Legacy change",
+                "status": "in-progress",
+                "created_at": "2026-06-09",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    changes = list_changes(tmp_path)
+
+    assert changes[0].name == "legacy-change"
+    assert changes[0].phase == "apply"
+    assert changes[0].archived is False

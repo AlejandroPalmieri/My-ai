@@ -8,6 +8,23 @@ The v0.1.0 release is intended to be the first usable local MVP: a safe command-
 
 No real LLM provider calls, autonomous command execution, external hosted MCP integrations, vector search, or self-modifying prompts are implemented in this first pass.
 
+## One-Line Go CLI Install
+
+The Go CLI migration starts with a small native `agentos` binary for stable commands while the Python CLI remains the full-featured runtime.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/AlejandroPalmieri/My-ai/main/scripts/install.sh | sh
+```
+
+After installation, open a new terminal if `~/.local/bin` was not already on `PATH`, then run:
+
+```sh
+agentos version
+agentos doctor
+```
+
+See `docs/go-cli-migration.md` for the current Go command scope and migration rule.
+
 ## Windows PowerShell Setup
 
 ```powershell
@@ -81,6 +98,8 @@ agentos init
 agentos models init
 agentos models status
 agentos chat once "Hello AgentOS"
+agentos chat once "Hello AgentOS" --stream
+agentos chat once "Hello AgentOS" --no-stream
 agentos agents status
 agentos usage summary
 agentos mcp serve
@@ -163,9 +182,10 @@ stores environment variable names only. `local-stub` works without network or
 API keys. See `docs/models.md`.
 
 `agentos chat once` sends one explicit user message, plus an optional `--system`
-prompt, to the active model profile. It does not automatically include local
-files, memories, traces, or secrets. The default `local-stub` provider works
-offline. See `docs/chat.md`.
+prompt, to the active model profile. It supports `--stream` and `--no-stream`,
+and it does not automatically include local files, memories, traces, or secrets.
+The default `local-stub` provider works offline. See `docs/chat.md` and
+`docs/streaming-chat.md`.
 
 Usage accounting is stored locally in `.agentos/usage/usage.db`. It records
 token and estimated cost metadata by session, day, project/profile, model, and
@@ -213,11 +233,12 @@ chat:
 Use `agentos --no-dashboard` to skip the dashboard for a faster startup, `agentos --plain` for plain text output, and `agentos ui themes` to list available themes. See `docs/ui.md`.
 
 Interactive chat commands include `/model list`, `/model set <profile>`,
-`/effort low|medium|high|max`, `/usage`, `/usage reset --confirm`, `/agents`,
-`/clear`, `/dashboard`, and `/memory search <query>`. Any other input is sent to
-the active model. AgentOS does not automatically include memory, brain
-documents, traces, or local files in prompts; retrieval-augmented chat is a
-future feature. See `docs/interactive-chat.md`.
+`/effort low|medium|high|max`, `/stream on`, `/stream off`, `/stream status`,
+`/usage`, `/usage reset --confirm`, `/agents`, `/clear`, `/dashboard`, and
+`/memory search <query>`. Any other input is sent to the active model. AgentOS
+does not automatically include memory, brain documents, traces, or local files
+in prompts; retrieval-augmented chat is a future feature. See
+`docs/interactive-chat.md`.
 
 ## Dashboard
 

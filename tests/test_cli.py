@@ -17,9 +17,10 @@ def test_version_command():
 
 
 def test_doctor_command_reports_environment(tmp_path):
-    venv_agentos = tmp_path / ".venv" / "Scripts" / "agentos.exe"
+    venv_agentos = tmp_path / ".venv" / "bin" / "agentos"
     venv_agentos.parent.mkdir(parents=True)
     venv_agentos.write_text("", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'demo'\n", encoding="utf-8")
     result = runner.invoke(app, ["doctor", "--root", str(tmp_path)])
 
     assert result.exit_code == 0

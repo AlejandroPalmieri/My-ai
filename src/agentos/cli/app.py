@@ -637,6 +637,10 @@ def chat_once_command(
         str | None,
         typer.Option("--system", help="Optional system prompt."),
     ] = None,
+    stream: Annotated[
+        bool,
+        typer.Option("--stream/--no-stream", help="Stream response deltas when supported."),
+    ] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Print JSON output.")] = False,
     root: RootOption = Path("."),
 ) -> None:
@@ -649,6 +653,8 @@ def chat_once_command(
             model_profile_name=model_profile_name,
             effort=effort,
             system_prompt=system_prompt,
+            stream=stream,
+            on_delta=None if json_output else _print_stream_delta,
         )
     except (KeyError, ValueError) as error:
         _fail_trace(trace, "chat.once", str(error))
@@ -657,7 +663,10 @@ def chat_once_command(
     if json_output:
         typer.echo(json.dumps(response.model_dump(mode="json"), indent=2))
     else:
-        console.print(response.text, markup=False)
+        if not response.streamed or response.stream_fallback:
+            console.print(response.text, markup=False)
+        elif response.streamed:
+            console.print()
         console.print(
             f"model={response.model_profile} provider={response.provider} "
             f"effort={response.effort} tokens={response.usage.total_tokens} "
@@ -672,6 +681,10 @@ def chat_once_command(
         "chat.once",
         {"model_profile": response.model_profile, "total_tokens": response.usage.total_tokens},
     )
+
+
+def _print_stream_delta(delta: str) -> None:
+    console.print(delta, markup=False, end="")
 
 
 @chat_app.command("status")

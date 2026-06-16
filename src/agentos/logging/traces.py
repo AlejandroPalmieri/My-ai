@@ -50,6 +50,10 @@ class TraceEventType(StrEnum):
     INTERACTIVE_MESSAGE_RECEIVED = "interactive_message_received"
     CONTEXT_WARNING = "context_warning"
     CONTEXT_COMPACTED = "context_compacted"
+    STREAM_STARTED = "stream_started"
+    STREAM_DELTA_RECEIVED = "stream_delta_received"
+    STREAM_COMPLETED = "stream_completed"
+    STREAM_FAILED = "stream_failed"
 
 
 class TraceEvent(BaseModel):

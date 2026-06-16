@@ -1,8 +1,15 @@
+import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 def test_install_agentos_command_writes_idempotent_path_shim_and_removes_profile_block(tmp_path):
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
+    if powershell is None:
+        pytest.skip("PowerShell is required to test the Windows command installer script.")
+
     script_path = Path("scripts/install-agentos-command.ps1")
     project_root = tmp_path / "agentos-personal"
     executable = project_root / ".venv" / "Scripts" / "agentos.exe"
@@ -25,7 +32,7 @@ def test_install_agentos_command_writes_idempotent_path_shim_and_removes_profile
     )
 
     command = [
-        "powershell",
+        powershell,
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",

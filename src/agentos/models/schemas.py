@@ -20,6 +20,7 @@ class ModelProvider(BaseModel):
     base_url: str | None = None
     api_key_env: str | None = None
     enabled: bool = True
+    supports_streaming: bool = False
 
 
 class ModelProfile(BaseModel):
@@ -88,4 +89,22 @@ class ChatResponse(BaseModel):
     model: str
     effort: ModelEffort
     usage: ChatUsage
+    error: str | None = None
+    streamed: bool = False
+    stream_fallback: bool = False
+
+
+StreamEventType = Literal[
+    "message_start",
+    "content_delta",
+    "message_done",
+    "usage_delta",
+    "error",
+]
+
+
+class ChatStreamEvent(BaseModel):
+    type: StreamEventType
+    delta: str = ""
+    usage: ChatUsage | None = None
     error: str | None = None

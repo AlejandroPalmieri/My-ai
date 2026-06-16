@@ -22,6 +22,9 @@ quit
 /model list
 /model set <profile>
 /effort low|medium|high|max
+/stream on
+/stream off
+/stream status
 /usage
 /usage reset --confirm
 /agents
@@ -31,6 +34,9 @@ quit
 ```
 
 Any other input is sent as a user message to the active model profile.
+
+Normal messages stream by default when the active provider supports streaming.
+Use `/stream off` to force non-streaming responses for the current session.
 
 ## Context And History
 
@@ -71,5 +77,9 @@ Interactive chat writes local trace events:
 
 - `interactive_message_sent`
 - `interactive_message_received`
+- `stream_started`
+- `stream_delta_received`
+- `stream_completed`
+- `stream_failed`
 - `context_warning`
 - `context_compacted`

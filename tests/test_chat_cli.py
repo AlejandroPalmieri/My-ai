@@ -59,3 +59,25 @@ def test_chat_once_creates_trace_events(tmp_path):
     assert "model_request_started" in trace_text
     assert "model_request_completed" in trace_text
     assert "model_usage_updated" in trace_text
+
+
+def test_chat_once_stream_cli_prints_expected_content(tmp_path):
+    result = runner.invoke(
+        app,
+        ["chat", "once", "hello streaming", "--stream", "--root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "local-stub response" in result.output
+    assert "hello streaming" in result.output
+    assert "model=local-stub" in result.output
+
+
+def test_chat_once_no_stream_cli_remains_supported(tmp_path):
+    result = runner.invoke(
+        app,
+        ["chat", "once", "hello no stream", "--no-stream", "--root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "hello no stream" in result.output

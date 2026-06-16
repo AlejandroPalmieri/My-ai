@@ -4,6 +4,7 @@ from agentos.models.providers.base import approximate_tokens
 from agentos.models.schemas import (
     ChatRequest,
     ChatResponse,
+    ChatStreamEvent,
     ChatUsage,
     ModelProfile,
     ModelProvider,
@@ -12,6 +13,8 @@ from agentos.models.usage import chat_usage_for_profile
 
 
 class LocalStubProvider:
+    supports_streaming = True
+
     def complete(
         self,
         request: ChatRequest,
@@ -40,6 +43,28 @@ class LocalStubProvider:
             usage=usage,
         )
 
+    def stream(
+        self,
+        request: ChatRequest,
+        provider: ModelProvider,
+        profile: ModelProfile,
+    ):
+        response = self.complete(request, provider, profile)
+        yield ChatStreamEvent(type="message_start")
+        for chunk in _deterministic_chunks(response.text):
+            yield ChatStreamEvent(type="content_delta", delta=chunk)
+        yield ChatStreamEvent(type="usage_delta", usage=response.usage)
+        yield ChatStreamEvent(type="message_done")
+
 
 def zero_usage() -> ChatUsage:
     return ChatUsage(input_tokens=0, output_tokens=0, total_tokens=0, estimated_cost_usd=None)
+
+
+def _deterministic_chunks(text: str) -> list[str]:
+    words = text.split(" ")
+    chunks = []
+    for index, word in enumerate(words):
+        suffix = " " if index < len(words) - 1 else ""
+        chunks.append(word + suffix)
+    return chunks

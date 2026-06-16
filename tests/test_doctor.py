@@ -1,3 +1,5 @@
+import os
+
 from agentos.diagnostics.doctor import CheckStatus, run_doctor
 
 
@@ -28,8 +30,11 @@ def test_run_doctor_reports_core_local_environment(tmp_path):
     assert checks["sqlite"].status == CheckStatus.PASS
     assert checks["sqlite-fts5"].status in {CheckStatus.PASS, CheckStatus.WARN}
     assert checks["policies"].status == CheckStatus.PASS
-    assert checks["windows-shim"].status == CheckStatus.PASS
-    assert "agentos.cmd" in checks["windows-shim"].detail
+    if os.name == "nt":
+        assert checks["windows-shim"].status == CheckStatus.PASS
+        assert "agentos.cmd" in checks["windows-shim"].detail
+    else:
+        assert "windows-shim" not in checks
 
 
 def test_run_doctor_fails_when_agentos_executable_is_missing(tmp_path):

@@ -104,6 +104,7 @@ Valid phases are `init`, `explore`, `proposal`, `spec`, `design`, `tasks`, `appl
 - The console-script entrypoint is `agentos.cli.app:main` rather than the raw Typer app. This wrapper detects invocations with no known subcommand and forwards root-level options to the interactive CLI before Typer command parsing runs.
 - Policy decisions use `allow`, `warn`, and `block`. Sensitive path and destructive command rules block; approval rules warn; safe inputs allow. The checker is local text analysis only and never executes checked commands.
 - Trace events use a stable JSONL schema with `id`, `timestamp`, `event_type`, `command`, `status`, `project`, `payload`, and `error`. Sensitive-looking values are redacted before writing.
+- Chat streaming is implemented at the model provider boundary with normalized events (`message_start`, `content_delta`, `message_done`, `usage_delta`, `error`). CLI and interactive chat consume deltas without logging prompt or response bodies, then record usage after completion.
 - Profile validation treats unknown preferred skill names as warnings so profile configuration can reference planned skills without failing the whole profile file.
 - The startup UI uses Rich, not Textual. It is local-first and avoids external service calls.
 - The dashboard interactive mode uses Rich and local service calls instead of Textual. It supports pane focus and safe local actions, but still does not reveal redacted policy values or run arbitrary shell commands.

@@ -17,7 +17,8 @@ def test_models_cli_init_list_show_set_status_usage(tmp_path):
     usage_result = runner.invoke(app, ["models", "usage", "--root", str(tmp_path)])
 
     assert init_result.exit_code == 0
-    assert ".agentos" in init_result.output
+    assert "Model config initialized" in init_result.output
+    assert (tmp_path / ".agentos" / "models.yaml").exists()
     assert list_result.exit_code == 0
     assert "local-stub" in list_result.output
     assert "openai-gpt-5-5-thinking" in list_result.output

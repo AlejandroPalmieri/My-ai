@@ -15,6 +15,9 @@ def test_interactive_command_parser():
     assert parse_interactive_command("/model list").name == "model.list"
     assert parse_interactive_command("/model set local-stub").args == ["local-stub"]
     assert parse_interactive_command("/effort high").name == "effort"
+    assert parse_interactive_command("/stream on").name == "stream.on"
+    assert parse_interactive_command("/stream off").name == "stream.off"
+    assert parse_interactive_command("/stream status").name == "stream.status"
     assert parse_interactive_command("/memory search SQLite").args == ["SQLite"]
     assert parse_interactive_command("hello agentos").name == "message"
 
@@ -62,6 +65,22 @@ def test_usage_and_clear_commands(tmp_path):
     assert session.history == []
     assert "--confirm" in reset_rejected.output
     assert "Usage reset" in reset_accepted.output
+
+
+def test_stream_commands_and_default_streaming(tmp_path):
+    chunks: list[str] = []
+    session = InteractiveChatSession(tmp_path, stream_writer=chunks.append)
+
+    status = session.handle_input("/stream status")
+    streamed = session.handle_input("Hello streamed interactive")
+    off = session.handle_input("/stream off")
+    non_streamed = session.handle_input("Hello non streamed interactive")
+
+    assert "stream=on" in status.output
+    assert "".join(chunks)
+    assert streamed.output == ""
+    assert "Streaming disabled" in off.output
+    assert "Hello non streamed interactive" in non_streamed.output
 
 
 def test_context_warning_and_compaction(tmp_path):

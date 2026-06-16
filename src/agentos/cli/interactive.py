@@ -44,6 +44,7 @@ def run_interactive_cli(
     session = InteractiveChatSession(
         root,
         max_history_messages=config.chat.max_history_messages,
+        stream_writer=lambda delta: console.print(delta, markup=False, end=""),
     )
     console.print("AgentOS Interactive Model Chat")
     console.print("Type 'help' for commands, or 'exit' to quit.")
@@ -58,6 +59,8 @@ def run_interactive_cli(
             break
 
         result = session.handle_input(command)
+        if not result.output and command.strip() and not command.strip().startswith("/"):
+            console.print()
         if result.dashboard_requested:
             data = collect_dashboard_data(root)
             compact = _should_use_compact_layout(config.ui.compact_mode, console.width)

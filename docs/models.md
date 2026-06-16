@@ -71,6 +71,7 @@ providers:
     base_url: null
     api_key_env: OPENAI_API_KEY
     enabled: true
+    supports_streaming: true
 model_profiles:
   - name: openai-gpt-5-5
     provider: openai
@@ -105,6 +106,18 @@ agentos usage export --format json
 ```
 
 See `docs/chat.md` and `docs/usage.md`.
+
+## Streaming Support
+
+Providers declare streaming capability with `supports_streaming`. The default
+`local-stub`, `openai`, and `openrouter` providers support streaming. Providers
+without streaming support gracefully fall back to non-streaming chat.
+
+```powershell
+agentos chat once "hello streaming" --stream --model local-stub
+```
+
+See `docs/streaming-chat.md`.
 
 ## Effort And Routing
 

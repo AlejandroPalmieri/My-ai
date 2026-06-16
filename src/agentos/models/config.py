@@ -101,14 +101,20 @@ def _write_usage_snapshot(root: Path, config: ModelConfig) -> None:
 
 def default_model_config() -> ModelConfig:
     providers = [
-        ModelProvider(name="local", kind="local_stub"),
-        ModelProvider(name="openai", kind="openai", api_key_env="OPENAI_API_KEY"),
+        ModelProvider(name="local", kind="local_stub", supports_streaming=True),
+        ModelProvider(
+            name="openai",
+            kind="openai",
+            api_key_env="OPENAI_API_KEY",
+            supports_streaming=True,
+        ),
         ModelProvider(name="anthropic", kind="anthropic", api_key_env="ANTHROPIC_API_KEY"),
         ModelProvider(
             name="openrouter",
             kind="openai_compatible",
             base_url="https://openrouter.ai/api/v1",
             api_key_env="OPENROUTER_API_KEY",
+            supports_streaming=True,
         ),
         ModelProvider(name="ollama", kind="ollama", base_url="http://localhost:11434"),
     ]

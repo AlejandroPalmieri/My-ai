@@ -16,10 +16,27 @@ traces, databases, policies, or secrets.
 agentos chat once "message"
 agentos chat once "message" --model local-stub
 agentos chat once "message" --effort low
+agentos chat once "message" --stream
+agentos chat once "message" --no-stream
 agentos chat once "message" --system "Reply briefly."
 agentos chat once "message" --json
 agentos chat status
 ```
+
+## Streaming
+
+Use `--stream` to print response deltas as they arrive. Use `--no-stream` to
+force the regular non-streaming response path.
+
+```powershell
+agentos chat once "hello streaming" --stream
+agentos chat once "hello streaming" --stream --model local-stub
+agentos chat once "hello streaming" --stream --effort high
+```
+
+If the active provider does not support streaming, AgentOS falls back to
+non-streaming completion. JSON output stays valid: `--json --stream` does not
+print raw stream deltas before the JSON payload.
 
 ## Local Stub
 
@@ -89,13 +106,16 @@ Trace events emitted by chat:
 - `model_request_completed`
 - `model_request_failed`
 - `model_usage_updated`
+- `stream_started`
+- `stream_delta_received`
+- `stream_completed`
+- `stream_failed`
 
 Trace payloads include provider/model metadata and token counts, not prompt
 text or API key values.
 
 ## Limitations
 
-- No streaming yet.
 - No tool calling yet.
 - No autonomous agent or subagent execution.
 - No automatic memory or file retrieval.

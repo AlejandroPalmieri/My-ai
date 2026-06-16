@@ -149,7 +149,37 @@ def _read_metadata(change_dir: Path) -> SDDMetadata:
     path = change_dir / "metadata.json"
     if not path.exists():
         raise FileNotFoundError(f"Missing SDD metadata: {path}")
-    return SDDMetadata(**json.loads(path.read_text(encoding="utf-8")))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return SDDMetadata(**_normalize_metadata(data, change_dir.name))
+
+
+def _normalize_metadata(data: dict[str, object], change_name: str) -> dict[str, object]:
+    if "name" in data and "phase" in data and "archived" in data and "phase_history" in data:
+        return data
+
+    phase = str(data.get("phase") or _legacy_status_to_phase(str(data.get("status") or "init")))
+    archived = bool(data.get("archived", phase == "archive"))
+    created_at = str(data.get("created_at") or datetime.now(UTC).isoformat())
+    updated_at = str(data.get("updated_at") or created_at)
+    return {
+        "name": str(data.get("name") or data.get("id") or change_name),
+        "phase": phase,
+        "archived": archived,
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "phase_history": data.get("phase_history") or [{"phase": phase, "at": updated_at}],
+    }
+
+
+def _legacy_status_to_phase(status: str) -> str:
+    legacy_statuses = {
+        "active": "apply",
+        "in-progress": "apply",
+        "completed": "sync",
+        "done": "sync",
+        "archived": "archive",
+    }
+    return status if status in PHASES else legacy_statuses.get(status, "init")
 
 
 def _write_metadata(path: Path, metadata: SDDMetadata) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
@@ -67,6 +68,14 @@ def parse_interactive_command(line: str) -> ParsedInteractiveCommand:
             return ParsedInteractiveCommand(name="model.set", args=args[1:], raw=line)
     if command == "/effort":
         return ParsedInteractiveCommand(name="effort", args=args, raw=line)
+    if command == "/stream":
+        if args[:1] == ["on"]:
+            return ParsedInteractiveCommand(name="stream.on", args=args[1:], raw=line)
+        if args[:1] == ["off"]:
+            return ParsedInteractiveCommand(name="stream.off", args=args[1:], raw=line)
+        if args[:1] == ["status"]:
+            return ParsedInteractiveCommand(name="stream.status", args=args[1:], raw=line)
+        return ParsedInteractiveCommand(name="stream.status", args=args, raw=line)
     if command == "/usage":
         if args and args[0] == "reset":
             return ParsedInteractiveCommand(name="usage.reset", args=args[1:], raw=line)
@@ -89,12 +98,15 @@ class InteractiveChatSession:
         *,
         max_history_messages: int = 20,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+        stream_writer: Callable[[str], None] | None = None,
     ) -> None:
         self.root = root
         self.max_history_messages = max(0, max_history_messages)
         self.system_prompt = system_prompt
         self.history: list[ChatHistoryMessage] = []
         self.effort_override: str | None = None
+        self.stream_enabled = True
+        self.stream_writer = stream_writer
         self.session_id = uuid4().hex
         self.trace = TraceLogger(root)
 
@@ -120,6 +132,14 @@ class InteractiveChatSession:
             return InteractiveTurnResult(self._model_set(parsed.args))
         if parsed.name == "effort":
             return InteractiveTurnResult(self._effort(parsed.args))
+        if parsed.name == "stream.on":
+            self.stream_enabled = True
+            return InteractiveTurnResult("Streaming enabled.")
+        if parsed.name == "stream.off":
+            self.stream_enabled = False
+            return InteractiveTurnResult("Streaming disabled.")
+        if parsed.name == "stream.status":
+            return InteractiveTurnResult(self._stream_status())
         if parsed.name == "usage":
             return InteractiveTurnResult(self._usage())
         if parsed.name == "usage.reset":
@@ -156,6 +176,8 @@ class InteractiveChatSession:
             effort=self.effort_override,
             system_prompt=self.system_prompt,
             session_id=self.session_id,
+            stream=self.stream_enabled,
+            on_delta=self.stream_writer,
         )
         if response.status != "ok":
             return InteractiveTurnResult("\n".join([*notices, response.text]).strip())
@@ -177,6 +199,8 @@ class InteractiveChatSession:
                 "history_messages": len(self.history),
             },
         )
+        if response.streamed and not response.stream_fallback and self.stream_writer:
+            return InteractiveTurnResult("\n".join(notices).strip())
         return InteractiveTurnResult("\n".join([*notices, response.text]).strip())
 
     def _prepare_context(self, latest_message: str) -> list[str]:
@@ -284,6 +308,21 @@ class InteractiveChatSession:
             f"status={status.status} effort={status.usage.effort}"
         )
 
+    def _stream_status(self) -> str:
+        status = inspect_model_status(self.root)
+        config = load_model_config(self.root)
+        provider = next(
+            provider for provider in config.providers if provider.name == status.active_provider
+        )
+        supported = provider.supports_streaming or provider.kind in {
+            "local_stub",
+            "openai",
+            "openai_compatible",
+        }
+        enabled = "on" if self.stream_enabled else "off"
+        support = "supported" if supported else "not supported"
+        return f"stream={enabled} provider={status.active_provider} {support}"
+
     def _model_list(self) -> str:
         config = load_model_config(self.root)
         lines = []
@@ -360,7 +399,8 @@ def _help_text() -> str:
             "Commands:",
             "help, version, doctor, exit, quit",
             "/model, /model list, /model set <profile>",
-            "/effort low|medium|high|max",
+        "/effort low|medium|high|max",
+        "/stream on|off|status",
             "/usage, /usage reset --confirm",
             "/agents, /clear, /dashboard",
             "/memory search <query>",

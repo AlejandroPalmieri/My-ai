@@ -71,3 +71,17 @@ agentos policies explain
 ```
 
 `policies check` exits with code 1 for `block` results and code 0 for `allow` or `warn` results. This keeps warning rules visible without treating them as hard failures.
+
+## Retrieval Safety
+
+Chat retrieval is explicit opt-in only. AgentOS does not send technical memory,
+Strategic Brain chunks, files, traces, backups, or local data unless the user
+uses retrieval flags or session commands.
+
+Safe retrieval behavior:
+
+- `--with-memory` and `/memory on` opt in technical memory excerpts.
+- `--with-brain` and `/brain on` opt in Strategic Brain excerpts.
+- `--dry-run-context` shows what would be sent without calling a provider.
+- Trace payloads include counts and ids, not full context bodies.
+- Hidden paths and sensitive-looking content are filtered from retrieval output.

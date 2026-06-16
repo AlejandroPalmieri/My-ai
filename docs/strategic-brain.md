@@ -55,3 +55,16 @@ Strategic Brain is separate from technical memory:
 - Only user-specified `.md` and `.txt` files are read.
 
 Policy checks run before reading a file, so sensitive paths remain blocked.
+
+## Chat Retrieval
+
+Strategic Brain content is not sent to chat by default. Use explicit opt-in:
+
+```powershell
+agentos chat once "message" --with-brain
+agentos chat once "message" --with-brain --brain-query "planning layer"
+agentos chat once "message" --with-brain --dry-run-context
+```
+
+AgentOS retrieves limited chunks with document ids, titles, paths, and excerpts.
+It does not send whole documents to providers.

@@ -54,6 +54,10 @@ class TraceEventType(StrEnum):
     STREAM_DELTA_RECEIVED = "stream_delta_received"
     STREAM_COMPLETED = "stream_completed"
     STREAM_FAILED = "stream_failed"
+    RETRIEVAL_REQUESTED = "retrieval_requested"
+    RETRIEVAL_CONTEXT_BUILT = "retrieval_context_built"
+    RETRIEVAL_CONTEXT_SENT = "retrieval_context_sent"
+    RETRIEVAL_DRY_RUN = "retrieval_dry_run"
 
 
 class TraceEvent(BaseModel):

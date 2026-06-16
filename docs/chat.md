@@ -18,6 +18,12 @@ agentos chat once "message" --model local-stub
 agentos chat once "message" --effort low
 agentos chat once "message" --stream
 agentos chat once "message" --no-stream
+agentos chat once "message" --with-memory
+agentos chat once "message" --with-brain
+agentos chat once "message" --with-memory --memory-query "decision"
+agentos chat once "message" --with-brain --brain-query "strategy"
+agentos chat once "message" --with-memory --with-brain --show-context
+agentos chat once "message" --with-memory --dry-run-context
 agentos chat once "message" --system "Reply briefly."
 agentos chat once "message" --json
 agentos chat status
@@ -37,6 +43,15 @@ agentos chat once "hello streaming" --stream --effort high
 If the active provider does not support streaming, AgentOS falls back to
 non-streaming completion. JSON output stays valid: `--json --stream` does not
 print raw stream deltas before the JSON payload.
+
+## Explicit Retrieval
+
+Chat does not automatically include memory, Strategic Brain documents, files,
+traces, or local data. Use `--with-memory` and/or `--with-brain` to opt in for a
+single request. Use `--show-context` to inspect the context before the response,
+or `--dry-run-context` to print the context without calling a provider.
+
+See `docs/retrieval.md`.
 
 ## Local Stub
 
@@ -110,6 +125,10 @@ Trace events emitted by chat:
 - `stream_delta_received`
 - `stream_completed`
 - `stream_failed`
+- `retrieval_requested`
+- `retrieval_context_built`
+- `retrieval_context_sent`
+- `retrieval_dry_run`
 
 Trace payloads include provider/model metadata and token counts, not prompt
 text or API key values.

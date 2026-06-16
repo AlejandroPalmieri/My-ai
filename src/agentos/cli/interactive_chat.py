@@ -22,6 +22,8 @@ from agentos.models.config import (
     set_active_model_profile,
 )
 from agentos.models.pricing import format_estimated_cost
+from agentos.retrieval.context_builder import build_retrieval_context
+from agentos.retrieval.schemas import RetrievalContext, RetrievalSettings
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are AgentOS Personal interactive chat. Answer the user's explicit "
@@ -88,6 +90,25 @@ def parse_interactive_command(line: str) -> ParsedInteractiveCommand:
         return ParsedInteractiveCommand(name="dashboard", raw=line)
     if command == "/memory" and args[:1] == ["search"]:
         return ParsedInteractiveCommand(name="memory.search", args=args[1:], raw=line)
+    if command == "/memory" and args[:1] == ["on"]:
+        return ParsedInteractiveCommand(name="memory.on", raw=line)
+    if command == "/memory" and args[:1] == ["off"]:
+        return ParsedInteractiveCommand(name="memory.off", raw=line)
+    if command == "/brain" and args[:1] == ["on"]:
+        return ParsedInteractiveCommand(name="brain.on", raw=line)
+    if command == "/brain" and args[:1] == ["off"]:
+        return ParsedInteractiveCommand(name="brain.off", raw=line)
+    if command == "/context":
+        if args[:1] == ["show"]:
+            return ParsedInteractiveCommand(name="context.show", raw=line)
+        if args[:1] == ["clear"]:
+            return ParsedInteractiveCommand(name="context.clear", raw=line)
+        if args[:1] == ["status"]:
+            return ParsedInteractiveCommand(name="context.status", raw=line)
+    if command == "/retrieve" and args[:1] == ["memory"]:
+        return ParsedInteractiveCommand(name="retrieve.memory", args=args[1:], raw=line)
+    if command == "/retrieve" and args[:1] == ["brain"]:
+        return ParsedInteractiveCommand(name="retrieve.brain", args=args[1:], raw=line)
     return ParsedInteractiveCommand(name="unknown", args=args, raw=line)
 
 
@@ -107,6 +128,11 @@ class InteractiveChatSession:
         self.effort_override: str | None = None
         self.stream_enabled = True
         self.stream_writer = stream_writer
+        self.memory_retrieval_enabled = False
+        self.brain_retrieval_enabled = False
+        self.memory_query: str | None = None
+        self.brain_query: str | None = None
+        self.last_retrieval_context: RetrievalContext | None = None
         self.session_id = uuid4().hex
         self.trace = TraceLogger(root)
 
@@ -153,6 +179,48 @@ class InteractiveChatSession:
             return InteractiveTurnResult("Dashboard refreshed.", dashboard_requested=True)
         if parsed.name == "memory.search":
             return InteractiveTurnResult(self._memory_search(parsed.args))
+        if parsed.name == "memory.on":
+            self.memory_retrieval_enabled = True
+            return InteractiveTurnResult("Memory retrieval enabled for this session.")
+        if parsed.name == "memory.off":
+            self.memory_retrieval_enabled = False
+            self.memory_query = None
+            return InteractiveTurnResult("Memory retrieval disabled for this session.")
+        if parsed.name == "brain.on":
+            self.brain_retrieval_enabled = True
+            return InteractiveTurnResult("Brain retrieval enabled for this session.")
+        if parsed.name == "brain.off":
+            self.brain_retrieval_enabled = False
+            self.brain_query = None
+            return InteractiveTurnResult("Brain retrieval disabled for this session.")
+        if parsed.name == "context.status":
+            return InteractiveTurnResult(self._context_status())
+        if parsed.name == "context.show":
+            block = (
+                self.last_retrieval_context.block
+                if self.last_retrieval_context
+                else "No context built."
+            )
+            return InteractiveTurnResult(block)
+        if parsed.name == "context.clear":
+            self.last_retrieval_context = None
+            self.memory_query = None
+            self.brain_query = None
+            return InteractiveTurnResult("Retrieval context cleared.")
+        if parsed.name == "retrieve.memory":
+            query = " ".join(parsed.args).strip()
+            self.memory_retrieval_enabled = True
+            self.memory_query = query or None
+            return InteractiveTurnResult(
+                f"Memory retrieval query set: {self.memory_query or 'latest message'}"
+            )
+        if parsed.name == "retrieve.brain":
+            query = " ".join(parsed.args).strip()
+            self.brain_retrieval_enabled = True
+            self.brain_query = query or None
+            return InteractiveTurnResult(
+                f"Brain retrieval query set: {self.brain_query or 'latest message'}"
+            )
         return InteractiveTurnResult(f"Unknown interactive command: {line}")
 
     def _handle_message(self, message: str) -> InteractiveTurnResult:
@@ -178,7 +246,14 @@ class InteractiveChatSession:
             session_id=self.session_id,
             stream=self.stream_enabled,
             on_delta=self.stream_writer,
+            retrieval_settings=self._retrieval_settings(),
         )
+        if self.memory_retrieval_enabled or self.brain_retrieval_enabled:
+            self.last_retrieval_context = build_retrieval_context(
+                self.root,
+                prompt,
+                self._retrieval_settings(),
+            )
         if response.status != "ok":
             return InteractiveTurnResult("\n".join([*notices, response.text]).strip())
 
@@ -323,6 +398,21 @@ class InteractiveChatSession:
         support = "supported" if supported else "not supported"
         return f"stream={enabled} provider={status.active_provider} {support}"
 
+    def _retrieval_settings(self) -> RetrievalSettings:
+        return RetrievalSettings(
+            with_memory=self.memory_retrieval_enabled,
+            with_brain=self.brain_retrieval_enabled,
+            memory_query=self.memory_query,
+            brain_query=self.brain_query,
+        )
+
+    def _context_status(self) -> str:
+        return (
+            f"memory={'on' if self.memory_retrieval_enabled else 'off'} "
+            f"brain={'on' if self.brain_retrieval_enabled else 'off'} "
+            f"context={'built' if self.last_retrieval_context else 'empty'}"
+        )
+
     def _model_list(self) -> str:
         config = load_model_config(self.root)
         lines = []
@@ -399,14 +489,18 @@ def _help_text() -> str:
             "Commands:",
             "help, version, doctor, exit, quit",
             "/model, /model list, /model set <profile>",
-        "/effort low|medium|high|max",
-        "/stream on|off|status",
+            "/effort low|medium|high|max",
+            "/stream on|off|status",
             "/usage, /usage reset --confirm",
             "/agents, /clear, /dashboard",
             "/memory search <query>",
+            "/memory on|off",
+            "/brain on|off",
+            "/context show|clear|status",
+            "/retrieve memory <query>",
+            "/retrieve brain <query>",
             "Any other input is sent to the active model.",
-            "Retrieval-augmented chat is a future feature; memory, brain, traces, "
-            "and files are not included automatically.",
+            "Retrieval is explicit opt-in; traces and files are not included automatically.",
         ]
     )
 

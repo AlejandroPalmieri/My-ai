@@ -21,6 +21,8 @@ from agentos.models.schemas import (
     ModelProvider,
 )
 from agentos.models.usage import chat_usage_for_profile, record_model_usage
+from agentos.retrieval.context_builder import apply_context_to_message, build_retrieval_context
+from agentos.retrieval.schemas import RetrievalContext, RetrievalSettings
 
 
 def chat_once(
@@ -34,6 +36,7 @@ def chat_once(
     agent_id: str | None = None,
     stream: bool = False,
     on_delta: Callable[[str], None] | None = None,
+    retrieval_settings: RetrievalSettings | None = None,
 ) -> ChatResponse:
     path = create_default_model_config(root)
     routed_model_profile = effective_model_profile(root, "default_chat", model_profile_name)
@@ -44,13 +47,15 @@ def chat_once(
     profile = _profile_by_name(config.model_profiles, config.active.active_model_profile)
     provider = _provider_by_name(config.providers, profile.provider)
     effort_value = effective_effort(root, "default_chat", effort)
+    trace = TraceLogger(root)
+    retrieval_context = _build_context_if_requested(root, message, retrieval_settings, trace)
+    request_message = apply_context_to_message(message, retrieval_context)
     request = ChatRequest(
-        message=message,
+        message=request_message,
         system_prompt=system_prompt,
         model_profile_name=profile.name,
         effort=effort_value,
     )
-    trace = TraceLogger(root)
     trace.log_event(
         TraceEventType.MODEL_REQUEST_STARTED,
         command="chat.once",
@@ -106,6 +111,13 @@ def chat_once(
                 "usage_event_id": usage_event.id if usage_event else None,
             },
         )
+        if retrieval_context and retrieval_context.has_context:
+            trace.log_event(
+                TraceEventType.RETRIEVAL_CONTEXT_SENT,
+                command="chat.once",
+                status="sent",
+                payload=_retrieval_trace_payload(retrieval_context),
+            )
         return response
     trace.log_event(
         TraceEventType.MODEL_REQUEST_FAILED,
@@ -115,6 +127,53 @@ def chat_once(
         error=response.error,
     )
     return response
+
+
+def build_context_for_chat(
+    root: Path,
+    *,
+    message: str,
+    retrieval_settings: RetrievalSettings,
+) -> RetrievalContext:
+    return build_retrieval_context(root, message, retrieval_settings)
+
+
+def _build_context_if_requested(
+    root: Path,
+    message: str,
+    settings: RetrievalSettings | None,
+    trace: TraceLogger,
+) -> RetrievalContext | None:
+    if settings is None or not (settings.with_memory or settings.with_brain):
+        return None
+    trace.log_event(
+        TraceEventType.RETRIEVAL_REQUESTED,
+        command="chat.once",
+        status="requested",
+        payload={
+            "with_memory": settings.with_memory,
+            "with_brain": settings.with_brain,
+            "memory_limit": settings.memory_limit,
+            "brain_limit": settings.brain_limit,
+        },
+    )
+    context = build_retrieval_context(root, message, settings)
+    trace.log_event(
+        TraceEventType.RETRIEVAL_CONTEXT_BUILT,
+        command="chat.once",
+        status="built",
+        payload=_retrieval_trace_payload(context),
+    )
+    return context
+
+
+def _retrieval_trace_payload(context: RetrievalContext) -> dict[str, object]:
+    ids = context.ids
+    return {
+        "memory_count": len(context.memory_items),
+        "brain_count": len(context.brain_items),
+        **ids,
+    }
 
 
 def _complete_streaming(

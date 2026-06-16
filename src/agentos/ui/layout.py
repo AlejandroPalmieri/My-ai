@@ -48,6 +48,8 @@ class RuntimeInfo(BaseModel):
     skill_registry_path: Path
     policy_files: list[Path]
     warnings: list[str]
+    retrieval_memory: str = "off"
+    retrieval_brain: str = "off"
 
 
 class MemorySummary(BaseModel):
@@ -232,6 +234,7 @@ def render_agents_runtime(data: DashboardData, theme: Theme) -> Panel:
     table.add_row("skill registry", str(runtime.skill_registry_path))
     table.add_row("policy files", str(len(runtime.policy_files)))
     table.add_row("memory", runtime.memory_status)
+    table.add_row("retrieval", f"memory:{runtime.retrieval_memory} brain:{runtime.retrieval_brain}")
     table.add_row("skills", runtime.skill_registry_status)
     table.add_row("policies", runtime.policy_status)
     table.add_row("sdd", runtime.sdd_status)
@@ -370,6 +373,8 @@ def render_plain_dashboard(data: DashboardData) -> str:
         [
             "Runtime Context",
             f"- active profile: {data.runtime.active_profile}",
+            f"- retrieval: memory:{data.runtime.retrieval_memory} "
+            f"brain:{data.runtime.retrieval_brain}",
             f"- memory database path: {data.runtime.memory_db_path}",
             f"- skill registry path: {data.runtime.skill_registry_path}",
             f"- policy files: {len(data.runtime.policy_files)}",

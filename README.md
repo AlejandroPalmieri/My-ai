@@ -141,6 +141,8 @@ agentos models effort show high
 agentos models route list
 agentos models route set default_chat --model local-stub --effort medium
 agentos chat once "Explain AgentOS briefly."
+agentos chat once "Explain AgentOS briefly." --with-memory --show-context
+agentos chat once "Explain AgentOS briefly." --with-brain --dry-run-context
 agentos chat once "Explain AgentOS briefly." --json
 agentos chat status
 agentos agents start --name Planner --role planning --task "Plan next change" --model local-stub
@@ -191,7 +193,8 @@ API keys. See `docs/models.md` and `docs/providers.md`.
 prompt, to the active model profile. It supports `--stream` and `--no-stream`,
 and it does not automatically include local files, memories, traces, or secrets.
 The default `local-stub` provider works offline. See `docs/chat.md` and
-`docs/streaming-chat.md`.
+`docs/streaming-chat.md`. Local memory and Strategic Brain retrieval are explicit
+opt-in only; see `docs/retrieval.md`.
 
 Usage accounting is stored locally in `.agentos/usage/usage.db`. It records
 token and estimated cost metadata by session, day, project/profile, model, and

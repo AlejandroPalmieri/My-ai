@@ -107,6 +107,8 @@ def collect_dashboard_data(root: Path) -> DashboardData:
         skill_registry_path=skill_registry_path,
         policy_files=policy_files,
         warnings=warnings,
+        retrieval_memory="off",
+        retrieval_brain="off",
     )
 
     return DashboardData(

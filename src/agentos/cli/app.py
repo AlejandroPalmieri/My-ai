@@ -33,6 +33,8 @@ from agentos.models.pricing import format_estimated_cost
 from agentos.models.providers.factory import provider_adapter
 from agentos.models.routing import load_routing_config, set_route
 from agentos.refiner.analyzer import RefinerAnalysis
+from agentos.retrieval.context_builder import build_retrieval_context
+from agentos.retrieval.schemas import RetrievalSettings
 from agentos.sdd.generator import InvalidPhaseTransitionError, InvalidSlugError
 from agentos.services.container import ServiceContainer, create_service_container
 from agentos.ui.banner import render_startup_banner
@@ -728,11 +730,58 @@ def chat_once_command(
         bool,
         typer.Option("--stream/--no-stream", help="Stream response deltas when supported."),
     ] = False,
+    with_memory: Annotated[
+        bool,
+        typer.Option("--with-memory", help="Opt in technical memory retrieval."),
+    ] = False,
+    with_brain: Annotated[
+        bool,
+        typer.Option("--with-brain", help="Opt in Strategic Brain retrieval."),
+    ] = False,
+    memory_query: Annotated[
+        str | None,
+        typer.Option("--memory-query", help="Memory retrieval query override."),
+    ] = None,
+    brain_query: Annotated[
+        str | None,
+        typer.Option("--brain-query", help="Brain retrieval query override."),
+    ] = None,
+    show_context: Annotated[
+        bool,
+        typer.Option("--show-context", help="Print opt-in context before response."),
+    ] = False,
+    dry_run_context: Annotated[
+        bool,
+        typer.Option("--dry-run-context", help="Only show context; do not call model."),
+    ] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Print JSON output.")] = False,
     root: RootOption = Path("."),
 ) -> None:
     """Send one explicit prompt to the active model profile."""
     trace = _start_trace(root, "chat.once")
+    retrieval_settings = RetrievalSettings(
+        with_memory=with_memory,
+        with_brain=with_brain,
+        memory_query=memory_query,
+        brain_query=brain_query,
+    )
+    if with_memory or with_brain or dry_run_context:
+        context = build_retrieval_context(root, message, retrieval_settings)
+        if show_context or dry_run_context:
+            console.print(context.block, markup=False)
+        if dry_run_context:
+            TraceLogger(root).log_event(
+                TraceEventType.RETRIEVAL_DRY_RUN,
+                command="chat.once",
+                status="dry_run",
+                payload={
+                    "memory_count": len(context.memory_items),
+                    "brain_count": len(context.brain_items),
+                    **context.ids,
+                },
+            )
+            _complete_trace(trace, "chat.once", {"dry_run_context": True})
+            return
     try:
         response = chat_once(
             root,
@@ -742,6 +791,7 @@ def chat_once_command(
             system_prompt=system_prompt,
             stream=stream,
             on_delta=None if json_output else _print_stream_delta,
+            retrieval_settings=retrieval_settings,
         )
     except (KeyError, ValueError) as error:
         _fail_trace(trace, "chat.once", str(error))

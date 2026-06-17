@@ -85,3 +85,18 @@ Safe retrieval behavior:
 - `--dry-run-context` shows what would be sent without calling a provider.
 - Trace payloads include counts and ids, not full context bodies.
 - Hidden paths and sensitive-looking content are filtered from retrieval output.
+
+## Tool-Calling Safety
+
+Agent tools are allowlisted internal functions. AgentOS v0 deliberately has no
+shell tool, no arbitrary file read/write tool, and no network browsing tool.
+
+Safe tool behavior:
+
+- Unknown tools are blocked.
+- Tool arguments are policy-checked before execution.
+- `review` tools require explicit approval.
+- Dangerous command strings are blocked unless passed to `policies_check`, where
+  they are inspected as inert text and never executed.
+- Tool results are redacted if they contain sensitive-looking markers.
+- Tool execution is logged with tool trace events.

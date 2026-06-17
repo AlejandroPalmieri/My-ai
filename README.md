@@ -107,6 +107,8 @@ agentos agents status
 agentos usage summary
 agentos mcp serve
 agentos eval run
+agentos eval run --category safety
+agentos eval report --latest
 agentos refiner analyze
 agentos refiner propose
 agentos refiner list-proposals
@@ -146,6 +148,10 @@ agentos chat once "Explain AgentOS briefly." --with-brain --dry-run-context
 agentos chat once "Explain AgentOS briefly." --json
 agentos chat status
 agentos agents start --name Planner --role planning --task "Plan next change" --model local-stub
+agentos agents run --name Planner --role planning --task "Search memory for architecture" --tools
+agentos tools list
+agentos tools show memory_search
+agentos tools test policies_check --json-input '{"command":"pytest"}'
 agentos agents list
 agentos agents status
 agentos agents stop <agent-id>
@@ -195,6 +201,10 @@ and it does not automatically include local files, memories, traces, or secrets.
 The default `local-stub` provider works offline. See `docs/chat.md` and
 `docs/streaming-chat.md`. Local memory and Strategic Brain retrieval are explicit
 opt-in only; see `docs/retrieval.md`.
+
+`agentos agents run --tools` enables bounded tool-calling through allowlisted
+internal AgentOS tools only. There is no shell, arbitrary file access, or network
+browsing tool in v0. See `docs/tools.md`, `docs/agents.md`, and `docs/runtime.md`.
 
 Usage accounting is stored locally in `.agentos/usage/usage.db`. It records
 token and estimated cost metadata by session, day, project/profile, model, and
@@ -301,7 +311,11 @@ Memory commands print Rich tables by default. Use `--json` with `memory add`, `m
 
 Strategic Brain v0 indexes local `.md` and `.txt` documents under `.agentos/brain/index.db`. It uses SQLite FTS5 when available, falls back to `LIKE`, and stays separate from technical memory. No embeddings, LLM synthesis, or PDF ingestion are implemented yet. See `docs/strategic-brain.md`.
 
-Local evals run deterministic smoke checks for memory search, policy checks, skill validation, and SDD workflow. Results are stored under `.agentos/evals/results/`. See `docs/evals.md`.
+Local evals run deterministic checks for providers, streaming, context, retrieval,
+agent runs, safe tool-calling, and safety policies. Results are stored as JSON and
+Markdown under `.agentos/evals/results/`; inspect them with
+`agentos eval report --latest` or `agentos eval report <report-id>`. See
+`docs/evals.md`.
 
 The controlled refiner analyzes recent trace logs and writes human-reviewed improvement proposals under `.agentos/refiner/proposals/`. It does not edit `AGENTS.md`, skills, policies, or source code. See `docs/refiner.md`.
 

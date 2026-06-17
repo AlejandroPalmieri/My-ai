@@ -389,7 +389,8 @@ def test_eval_run_cli_smoke(tmp_path):
 
     assert result.exit_code == 0
     assert "Eval run" in result.output
-    assert "memory_search" in result.output
+    assert "provider_evals" in result.output
+    assert "safety_evals" in result.output
     assert (tmp_path / ".agentos" / "evals" / "results").exists()
 
 

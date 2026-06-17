@@ -15,6 +15,8 @@ perform autonomous work.
 ```powershell
 agentos agents start --name Planner --role planning --task "Plan the next change" --model local-stub
 agentos agents start --name Researcher --role research --task "Inspect docs" --model local-stub --kind subagent --parent-id <agent-id>
+agentos agents run --name Planner --role planning --task "Search memory for architecture" --tools
+agentos agents run --task "Check policy for pytest" --tools --max-steps 5
 agentos agents list
 agentos agents status
 agentos agents stop <agent-id>
@@ -50,9 +52,21 @@ Agent lifecycle commands write local trace events:
 - `agent_started`
 - `agent_stopped`
 - `agent_state_cleared`
+- `agent_run_started`
+- `agent_run_completed`
+- `agent_run_failed`
 
-They do not write `model_request_started` unless a future explicit model call
-is added.
+`agents start` is state tracking only. `agents run --tools` is an explicit,
+bounded tool loop; it can call only allowlisted internal tools and never exposes
+an unrestricted shell.
+
+## Tool Calling
+
+Agent tool calling is opt-in with `--tools`. The loop accepts provider-neutral
+JSON tool-call messages, validates the requested tool, checks policies, executes
+only allowlisted internal tools, and stops after `--max-steps` or a final answer.
+
+See `docs/tools.md` and `docs/runtime.md`.
 
 ## Dashboard
 

@@ -1,20 +1,20 @@
 {
-  "cases": [
-    {
-      "name": "memory_search",
-      "purpose": "Verify local technical memory add and search behavior."
-    },
-    {
-      "name": "policy_check",
-      "purpose": "Verify sensitive paths are blocked and safe commands are allowed."
-    },
-    {
-      "name": "skill_validation",
-      "purpose": "Verify a minimal valid SKILL.md passes registry validation."
-    },
-    {
-      "name": "sdd_workflow",
-      "purpose": "Verify SDD artifacts can be created and advanced locally."
-    }
-  ]
+  "categories": [
+    "provider_evals",
+    "streaming_evals",
+    "context_evals",
+    "retrieval_evals",
+    "agent_run_evals",
+    "tool_call_evals",
+    "safety_evals"
+  ],
+  "aliases": {
+    "providers": "provider_evals",
+    "streaming": "streaming_evals",
+    "context": "context_evals",
+    "retrieval": "retrieval_evals",
+    "agents": "agent_run_evals",
+    "tools": "tool_call_evals",
+    "safety": "safety_evals"
+  }
 }

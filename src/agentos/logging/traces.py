@@ -58,6 +58,14 @@ class TraceEventType(StrEnum):
     RETRIEVAL_CONTEXT_BUILT = "retrieval_context_built"
     RETRIEVAL_CONTEXT_SENT = "retrieval_context_sent"
     RETRIEVAL_DRY_RUN = "retrieval_dry_run"
+    TOOL_CALL_REQUESTED = "tool_call_requested"
+    TOOL_CALL_ALLOWED = "tool_call_allowed"
+    TOOL_CALL_BLOCKED = "tool_call_blocked"
+    TOOL_CALL_COMPLETED = "tool_call_completed"
+    TOOL_CALL_FAILED = "tool_call_failed"
+    AGENT_RUN_STARTED = "agent_run_started"
+    AGENT_RUN_COMPLETED = "agent_run_completed"
+    AGENT_RUN_FAILED = "agent_run_failed"
 
 
 class TraceEvent(BaseModel):

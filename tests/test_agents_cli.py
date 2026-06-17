@@ -150,6 +150,23 @@ def test_agents_cli_writes_traces_without_model_requests(tmp_path):
     assert "model_request_started" not in trace_text
 
 
+def test_agents_run_requires_tools_flag(tmp_path):
+    result = runner.invoke(
+        app,
+        [
+            "agents",
+            "run",
+            "--task",
+            "search memory for architecture",
+            "--root",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Agent tool calling requires --tools." in result.output
+
+
 def _agent_id_from_output(output: str) -> str:
     for line in output.splitlines():
         if line.startswith("id="):

@@ -10,10 +10,12 @@ from rich.table import Table
 from agentos import __version__
 from agentos.agents.registry import AgentRuntimeRegistry
 from agentos.agents.schemas import AgentKind
+from agentos.agents.tool_loop import AgentToolLoop
 from agentos.cli.interactive import run_interactive_cli
 from agentos.config.profiles import ProjectProfile
 from agentos.config.project import init_project
 from agentos.config.settings import set_banner_visibility, set_theme
+from agentos.evals.reports import latest_report, load_report, safe_report_text
 from agentos.evals.runner import EvalRunner
 from agentos.logging.traces import (
     TraceEventType,
@@ -37,6 +39,9 @@ from agentos.retrieval.context_builder import build_retrieval_context
 from agentos.retrieval.schemas import RetrievalSettings
 from agentos.sdd.generator import InvalidPhaseTransitionError, InvalidSlugError
 from agentos.services.container import ServiceContainer, create_service_container
+from agentos.tools.builtin_tools import create_builtin_tool_registry
+from agentos.tools.executor import ToolExecutor
+from agentos.tools.schemas import ToolCall, ToolExecutionContext
 from agentos.ui.banner import render_startup_banner
 from agentos.ui.dashboard import collect_dashboard_data, render_dashboard
 from agentos.ui.interactive import run_interactive_dashboard
@@ -66,6 +71,7 @@ models_effort_app = typer.Typer(help="Model effort profile commands.")
 models_route_app = typer.Typer(help="Model routing rule commands.")
 chat_app = typer.Typer(help="Single-turn model chat commands.")
 agents_app = typer.Typer(help="Local agent runtime registry commands.")
+tools_app = typer.Typer(help="Safe allowlisted internal tool commands.")
 usage_app = typer.Typer(help="Token and cost usage accounting commands.")
 console = Console()
 RootOption = Annotated[Path, typer.Option("--root", help="Project root.")]
@@ -89,6 +95,7 @@ TOP_LEVEL_COMMANDS = {
     "models",
     "chat",
     "agents",
+    "tools",
     "usage",
 }
 TYPER_ROOT_OPTIONS = {"--help", "-h", "--install-completion", "--show-completion"}
@@ -1018,6 +1025,47 @@ def agents_start(
     _complete_trace(trace, "agents.start", {"agent_id": agent.id})
 
 
+@agents_app.command("run")
+def agents_run(
+    task: Annotated[str, typer.Option("--task", help="Agent task.")],
+    name: Annotated[str, typer.Option("--name", help="Agent name.")] = "Agent",
+    role: Annotated[str, typer.Option("--role", help="Agent role.")] = "assistant",
+    tools_enabled: Annotated[
+        bool,
+        typer.Option("--tools", help="Allow safe internal AgentOS tool calls."),
+    ] = False,
+    max_steps: Annotated[int, typer.Option("--max-steps", help="Maximum tool steps.")] = 5,
+    approve: Annotated[
+        list[str] | None,
+        typer.Option("--approve", help="Approved tool name."),
+    ] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print JSON output.")] = False,
+    root: RootOption = Path("."),
+) -> None:
+    """Run a bounded local agent loop with optional safe tools."""
+    if not tools_enabled:
+        console.print("Agent tool calling requires --tools.", markup=False)
+        raise typer.Exit(1)
+    result = AgentToolLoop(root).run(
+        name=name,
+        role=role,
+        task=task,
+        max_steps=max_steps,
+        approvals=set(approve or []),
+    )
+    if json_output:
+        _print_json(result.model_dump(mode="json"))
+    else:
+        console.print(f"agent={result.name} status={result.status} steps={result.steps}")
+        for tool_result in result.tool_results:
+            console.print(
+                f"tool={tool_result.tool_name} status={tool_result.status} "
+                f"error={tool_result.error or ''}",
+                markup=False,
+            )
+        console.print(result.final_answer, markup=False)
+
+
 @agents_app.command("stop")
 def agents_stop(
     agent_id: Annotated[str, typer.Argument(help="Agent id.")],
@@ -1064,15 +1112,115 @@ def agents_clear(
     _complete_trace(trace, "agents.clear", {"cleared": True})
 
 
+@tools_app.command("list")
+def tools_list(root: RootOption = Path(".")) -> None:
+    """List safe allowlisted internal tools."""
+    trace = _start_trace(root, "tools.list")
+    registry = create_builtin_tool_registry()
+    tools = registry.list_tools()
+    table = Table("Tool", "Risk", "Approval", "Max Calls", "Description")
+    for tool in tools:
+        table.add_row(
+            tool.name,
+            tool.risk_level.value,
+            str(tool.requires_approval),
+            str(tool.max_calls_per_run),
+            tool.description,
+        )
+    console.print(table)
+    for tool in tools:
+        console.print(
+            f"{tool.name} risk={tool.risk_level.value} requires_approval={tool.requires_approval}",
+            markup=False,
+        )
+    _complete_trace(trace, "tools.list", {"count": len(tools)})
+
+
+@tools_app.command("show")
+def tools_show(
+    tool_name: Annotated[str, typer.Argument(help="Tool name.")],
+    root: RootOption = Path("."),
+) -> None:
+    """Show one safe tool schema."""
+    trace = _start_trace(root, "tools.show")
+    registry = create_builtin_tool_registry()
+    try:
+        tool = registry.get(tool_name)
+    except KeyError as error:
+        _fail_trace(trace, "tools.show", str(error))
+        console.print(str(error), markup=False)
+        raise typer.Exit(1) from error
+    _print_json(tool.model_dump(mode="json"))
+    _complete_trace(trace, "tools.show", {"tool_name": tool.name})
+
+
+@tools_app.command("test")
+def tools_test(
+    tool_name: Annotated[str, typer.Argument(help="Tool name.")],
+    json_input: Annotated[str, typer.Option("--json-input", help="Tool input JSON.")] = "{}",
+    approve: Annotated[
+        list[str] | None,
+        typer.Option("--approve", help="Approved tool name."),
+    ] = None,
+    root: RootOption = Path("."),
+) -> None:
+    """Execute one allowlisted tool with JSON input."""
+    try:
+        args = json.loads(json_input)
+    except json.JSONDecodeError as error:
+        console.print(f"Invalid JSON input: {error}", markup=False)
+        raise typer.Exit(1) from error
+    if not isinstance(args, dict):
+        console.print("--json-input must be a JSON object.", markup=False)
+        raise typer.Exit(1)
+    context = None if not approve else ToolExecutionContext(approvals=set(approve))
+    result = ToolExecutor(root, create_builtin_tool_registry()).execute(
+        ToolCall(name=tool_name, arguments=args),
+        context=context,
+    )
+    _print_json(result.model_dump(mode="json"))
+    if result.status != "ok":
+        raise typer.Exit(1)
+
+
 @eval_app.command("run")
-def eval_run(root: RootOption = Path(".")) -> None:
+def eval_run(
+    category: Annotated[
+        str | None,
+        typer.Option("--category", help="Eval category alias to run."),
+    ] = None,
+    root: RootOption = Path("."),
+) -> None:
     """Run local AgentOS eval cases and write a JSON result report."""
     trace = _start_trace(root, "eval.run")
-    report = EvalRunner(root).run()
+    try:
+        report = EvalRunner(root).run(category=category)
+    except ValueError as error:
+        _fail_trace(trace, "eval.run", str(error))
+        console.print(str(error), markup=False)
+        raise typer.Exit(1) from error
     _print_eval_report(report)
     _complete_trace(trace, "eval.run", {"passed": report.passed, **report.summary})
     if not report.passed:
         raise typer.Exit(1)
+
+
+@eval_app.command("report")
+def eval_report(
+    report_id: Annotated[str | None, typer.Argument(help="Eval report id.")] = None,
+    latest: Annotated[bool, typer.Option("--latest", help="Show latest eval report.")] = False,
+    root: RootOption = Path("."),
+) -> None:
+    """Show a stored eval report by id or the latest report."""
+    trace = _start_trace(root, "eval.report")
+    try:
+        payload = latest_report(root) if latest else load_report(root, report_id or "")
+    except (FileNotFoundError, ValueError) as error:
+        _fail_trace(trace, "eval.report", str(error))
+        console.print(str(error), markup=False)
+        raise typer.Exit(1) from error
+    _print_eval_report_payload(payload)
+    _complete_trace(trace, "eval.report", {"report_id": str(payload.get("id", ""))})
 
 
 @refiner_app.command("analyze")
@@ -1692,9 +1840,7 @@ def skills_validate(root: RootOption = Path(".")) -> None:
         console.print(f"Warning: {warning}")
     for error in validation.errors:
         console.print(error)
-    console.print(
-        f"Validated {validation.skill_count} skills; invalid: {validation.invalid_count}"
-    )
+    console.print(f"Validated {validation.skill_count} skills; invalid: {validation.invalid_count}")
     _complete_trace(
         trace,
         "skills.validate",
@@ -1845,6 +1991,7 @@ models_app.add_typer(models_route_app, name="route")
 app.add_typer(models_app, name="models")
 app.add_typer(chat_app, name="chat")
 app.add_typer(agents_app, name="agents")
+app.add_typer(tools_app, name="tools")
 app.add_typer(usage_app, name="usage")
 
 
@@ -1972,13 +2119,47 @@ def _print_policy_results(results) -> None:
 
 
 def _print_eval_report(report) -> None:
-    table = Table("Case", "Status", "Duration", "Detail")
+    table = Table("Category", "Case", "Status", "Duration", "Detail")
     for case in report.cases:
-        table.add_row(case.name, case.status, f"{case.duration_ms}ms", case.detail)
+        table.add_row(
+            case.category,
+            case.name,
+            case.status,
+            f"{case.duration_ms}ms",
+            safe_report_text(case.detail),
+        )
     console.print(table)
     console.print(
-        f"Eval run {report.id}: passed={report.summary['passed']} "
-        f"failed={report.summary['failed']} result={report.result_path}"
+        f"Eval run {report.id}: category={report.category} passed={report.summary['passed']} "
+        f"failed={report.summary['failed']} skipped={report.summary['skipped']} "
+        f"json={report.result_path} markdown={report.markdown_path}",
+        markup=False,
+    )
+
+
+def _print_eval_report_payload(payload: dict[str, object]) -> None:
+    summary = payload.get("summary") or {}
+    table = Table("Category", "Case", "Status", "Duration", "Detail")
+    cases = payload.get("cases") or []
+    if isinstance(cases, list):
+        for item in cases:
+            if not isinstance(item, dict):
+                continue
+            table.add_row(
+                str(item.get("category", "")),
+                str(item.get("name", "")),
+                str(item.get("status", "")),
+                f"{item.get('duration_ms', 0)}ms",
+                safe_report_text(item.get("detail", "")),
+            )
+    console.print(table)
+    passed = summary.get("passed", 0) if isinstance(summary, dict) else 0
+    failed = summary.get("failed", 0) if isinstance(summary, dict) else 0
+    skipped = summary.get("skipped", 0) if isinstance(summary, dict) else 0
+    console.print(
+        f"Eval report {payload.get('id', '')}: category={payload.get('category', '')} "
+        f"passed={passed} failed={failed} skipped={skipped}",
+        markup=False,
     )
 
 

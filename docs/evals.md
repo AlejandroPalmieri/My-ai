@@ -1,33 +1,62 @@
-# Evals
+# Local Evals
 
-AgentOS evals are local smoke checks for the MVP foundation. They do not call
-external services and do not execute shell commands.
+AgentOS evals are deterministic local checks for provider wiring, context handling,
+retrieval, bounded agent runs, safe tool-calling, streaming, and safety policy
+behavior. They do not call external APIs and do not execute shell commands.
 
-Run:
+## Run evals
 
 ```powershell
 agentos eval run
+agentos eval run --category providers
+agentos eval run --category context
+agentos eval run --category retrieval
+agentos eval run --category agents
+agentos eval run --category safety
 ```
 
-The first eval set covers:
+Category aliases map to internal categories:
 
-- `memory_search`: adds a temporary technical memory and verifies local search.
-- `policy_check`: verifies `.env` is blocked and `pytest` is allowed.
-- `skill_validation`: validates a minimal local `SKILL.md`.
-- `sdd_workflow`: creates and advances a temporary SDD change.
+| Alias | Internal category |
+|---|---|
+| `providers` | `provider_evals` |
+| `streaming` | `streaming_evals` |
+| `context` | `context_evals` |
+| `retrieval` | `retrieval_evals` |
+| `agents` | `agent_run_evals` |
+| `tools` | `tool_call_evals` |
+| `safety` | `safety_evals` |
 
-Results are written as JSON under:
+## Reports
+
+Each run writes both JSON and Markdown reports under:
 
 ```text
 .agentos/evals/results/
 ```
 
-Eval workspaces are written under `.agentos/evals/workspace/` so SQLite files
-remain stable on Windows while the run is inspectable. The result JSON includes
-`id`, `timestamp`, `passed`, `summary`, and per-case `name`, `status`, `detail`,
-and `duration_ms` fields. Tests should assert field shape and pass/fail counts,
-not exact wall-clock seconds.
+Reports include the eval id, selected category, pass/fail/skip counts, duration,
+failure details, environment summary, AgentOS version, and per-case results.
 
-The top-level `evals/cases.json` file documents the built-in case set. Future
-phases can expand this into richer fixtures, but v0 intentionally stays simple
-and deterministic.
+```powershell
+agentos eval report --latest
+agentos eval report <report-id>
+```
+
+Eval workspaces are scoped under `.agentos/evals/workspace/` so generated SQLite
+files and local fixtures remain isolated and inspectable.
+
+## Built-in coverage
+
+- Provider evals: local-stub non-streaming/streaming, missing API key warnings,
+  and provider factory selection.
+- Streaming evals: chunk reconstruction, usage tracking after streams, and
+  fallback to non-streaming when streaming is unsupported.
+- Context evals: context percentage states, oldest-message compaction, and no
+  hidden local data sent by default.
+- Retrieval evals: retrieval off by default, memory and Strategic Brain opt-in,
+  dry-run context without model calls, and configured max-result limits.
+- Agent and tool evals: text-only runs, local-stub tool runs, max-step limits,
+  unknown tool blocking, and policy blocking before tool execution.
+- Safety evals: `.env` path blocking, no API key values printed, no shell tool
+  exposed, and destructive command blocking.

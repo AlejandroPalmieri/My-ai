@@ -40,6 +40,9 @@ passes approval.
 
 There is no `shell`, file read/write, or network browsing tool in v0.
 
+v0.3.0 keeps this as a hard release checkpoint: agent and MCP tool surfaces must
+remain allowlisted, bounded, and explicit.
+
 ## Traces
 
 Tool execution writes local trace events:

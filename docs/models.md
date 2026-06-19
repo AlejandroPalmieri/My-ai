@@ -10,6 +10,14 @@ This file is for configuration and inspection only. It does not enable
 autonomous agent execution. The separate `agentos chat once` command can use
 this metadata for a single explicit prompt.
 
+## v0.3.0 Scope
+
+- Streaming capability is declared by provider metadata and consumed by chat.
+- Provider-specific adapters normalize chat, streaming, errors, and usage.
+- API key values are never written to configuration; only environment variable
+  names are stored.
+- `local-stub` remains the offline validation and smoke-test provider.
+
 ## Safety Rules
 
 - API keys are never written to `models.yaml`.

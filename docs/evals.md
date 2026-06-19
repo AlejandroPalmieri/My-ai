@@ -46,6 +46,13 @@ agentos eval report <report-id>
 Eval workspaces are scoped under `.agentos/evals/workspace/` so generated SQLite
 files and local fixtures remain isolated and inspectable.
 
+Release validation should run at least:
+
+```powershell
+agentos eval run --category safety
+agentos eval run --category providers
+```
+
 ## Built-in coverage
 
 - Provider evals: local-stub non-streaming/streaming, missing API key warnings,
@@ -60,3 +67,9 @@ files and local fixtures remain isolated and inspectable.
   unknown tool blocking, and policy blocking before tool execution.
 - Safety evals: `.env` path blocking, no API key values printed, no shell tool
   exposed, and destructive command blocking.
+
+## v0.3.0 Coverage Goal
+
+The checkpoint uses deterministic local evals to prove provider wiring, context
+defaults, opt-in retrieval, safe tool-calling, bounded agent runs, and safety
+policy behavior without external API calls.

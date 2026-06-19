@@ -1,6 +1,6 @@
-# Chat Once
+# Chat
 
-AgentOS includes a minimal single-turn chat boundary:
+AgentOS includes an explicit chat boundary for one-shot and interactive use:
 
 ```powershell
 agentos chat once "Hello AgentOS"
@@ -135,8 +135,9 @@ text or API key values.
 
 ## Limitations
 
-- No tool calling yet.
-- No autonomous agent or subagent execution.
+- Chat itself does not expose tool calling; bounded tool-calling lives under
+  `agentos agents run --tools`.
+- No autonomous background agent execution.
 - No automatic memory or file retrieval.
 - OpenAI-compatible support is `/chat/completions` only.
 - If provider usage is missing, AgentOS estimates tokens locally.

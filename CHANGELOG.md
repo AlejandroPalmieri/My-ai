@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3.0 - 2026-06-18
+
+Release checkpoint for the broader local AgentOS runtime.
+
+### Added
+
+- Streaming chat for one-shot and interactive local chat flows.
+- Provider-specific adapters for local-stub, OpenAI, OpenAI-compatible, OpenRouter, Anthropic, and Ollama behind a shared model client boundary.
+- Explicit opt-in retrieval from technical memory and Strategic Brain with dry-run and context inspection support.
+- Bounded agent runs with provider-neutral tool-call messages and safe allowlisted internal tools.
+- Stronger deterministic eval coverage for providers, streaming, context, retrieval, agent runs, tool safety, and safety policies.
+- MCP release checkpoint documentation, including the decision to defer formal Python MCP SDK adoption.
+
+### Security
+
+- Retrieval remains off by default and is never added to prompts unless explicitly requested.
+- Tool-calling exposes no unrestricted shell, arbitrary file read/write, or network browsing tool.
+- `.agentos/`, `.env`, runtime databases, traces, backups, logs, and exports remain ignored.
+- Provider configuration stores API key environment variable names only, not key values.
+
+### Known Limitations
+
+- MCP remains a custom local JSON-RPC STDIO implementation while SDK adoption is deferred.
+- Strategic Brain still has no embeddings, graph reasoning, PDF ingestion, or LLM synthesis.
+- Provider adapters are intentionally minimal and do not use vendor SDKs.
+- Agent runs are bounded local tool loops, not autonomous background workers.
+
 ## 0.1.0 - 2026-06-08
 
 First local MVP release of AgentOS Personal.

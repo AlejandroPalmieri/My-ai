@@ -13,7 +13,7 @@
 ## Current Modules Found
 
 - `src/agentos/__init__.py`
-  - Defines package version `0.1.0`.
+  - Defines package version `0.3.0`.
 - `src/agentos/cli/app.py`
   - Typer CLI application, console-script entrypoint, interactive dispatch, and command wiring through the service container.
 - `src/agentos/cli/interactive.py`

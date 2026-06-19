@@ -34,8 +34,10 @@ agentos
 | Provider | Streaming behavior |
 |----------|--------------------|
 | `local-stub` | Supports deterministic fake streaming for tests and offline use. |
-| `openai` / `openai_compatible` | Uses OpenAI-compatible server-sent chat completion events when configured. |
-| Other providers | Fall back to non-streaming completion. |
+| `openai` / `openai_compatible` / `openrouter` | Uses OpenAI-compatible server-sent chat completion events when configured. |
+| `anthropic` | Uses Anthropic streaming messages when configured. |
+| `ollama` | Streams from the local Ollama API when the local server supports it. |
+| Unsupported providers | Fall back to non-streaming completion. |
 
 AgentOS normalizes provider stream events into `message_start`, `content_delta`, `message_done`, `usage_delta`, and `error`.
 
@@ -51,3 +53,9 @@ Streaming traces include metadata-only events:
 - `stream_failed`
 
 Trace payloads do not store full prompt or full response bodies by default.
+
+## Release Checkpoint
+
+v0.3.0 treats streaming as part of the provider boundary, not a CLI-only feature.
+Adapters emit normalized events so CLI, interactive chat, evals, and usage
+accounting can share the same stream handling path.

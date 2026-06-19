@@ -19,7 +19,7 @@ AgentOS Personal uses small Python modules under `src/agentos/` with explicit bo
 - `utils`: placeholder package for shared helpers.
 - `services`: MCP-ready service interfaces and local adapters.
 
-The MVP is local-first and does not read secrets automatically. Policy checking is intentionally separate from any command execution because autonomous execution is out of scope.
+The v0.3.0 checkpoint is local-first and does not read secrets automatically. Policy checking is intentionally separate from command execution. Agent tool-calling is available only through an allowlisted internal registry and still does not expose unrestricted shell execution.
 
 ## Service Boundaries
 
@@ -54,9 +54,10 @@ Strategic synthesis remains an explicit TODO stub.
 
 The CLI writes local JSONL traces to `.agentos/traces/YYYY-MM-DD.jsonl` for command starts/completions/failures, memory additions/searches/deletes, policy checks/violations, skill scans, and SDD changes. These traces are local operational evidence, not autonomous self-improvement.
 
-Local eval results are written under `.agentos/evals/results/`. The first eval
-runner exercises memory search, policy checks, skill validation, and SDD
-workflow in isolated local workspaces.
+Local eval results are written under `.agentos/evals/results/`. The eval runner
+exercises providers, streaming, context handling, explicit retrieval, bounded
+agent runs, safe tool-calling, safety policies, memory search, skill validation,
+and SDD workflow in isolated local workspaces.
 
 The controlled refiner reads recent local traces and detects repeated command
 failures, frequent policy violations, and memory searches that returned zero
@@ -85,6 +86,8 @@ The experimental MCP server runs over local STDIO via `agentos mcp serve`. It
 exposes selected service-container capabilities as tools and intentionally does
 not expose memory deletion or shell execution. The first version uses a small
 MCP-shaped JSON-RPC adapter instead of adding a Python MCP SDK dependency.
+The v0.3.0 checkpoint documents the formal SDK decision as `defer` in
+`docs/mcp-sdk-decision.md`.
 
 ## SDD/OpenSpec Workflow
 
@@ -111,5 +114,6 @@ Valid phases are `init`, `explore`, `proposal`, `spec`, `design`, `tasks`, `appl
 - The startup UI uses Rich, not Textual. It is local-first and avoids external service calls.
 - The dashboard interactive mode uses Rich and local service calls instead of Textual. It supports pane focus and safe local actions, but still does not reveal redacted policy values or run arbitrary shell commands.
 - The MCP server is STDIO-only and local by default. It exposes policy checking as a tool so MCP-compatible agents can ask AgentOS to evaluate sensitive paths or dangerous command text without executing it.
+- Formal Python MCP SDK adoption is deferred for v0.3.0 because the current local STDIO tool surface is small, testable, and security-sensitive; adoption should be reconsidered when broader protocol compatibility or SDK registration reduces net complexity.
 - The refiner is proposal-only. It analyzes trace evidence but has no production self-modification path.
 - Backup archives use zip for Windows compatibility. Restore requires explicit confirmation and prune keeps the newest 10 backups by default.

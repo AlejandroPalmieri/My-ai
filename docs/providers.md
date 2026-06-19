@@ -2,6 +2,10 @@
 
 AgentOS uses provider-specific adapters behind one chat boundary. `local-stub` remains the default offline provider; real providers use environment variable names only and never store API key values in `.agentos/models.yaml`.
 
+v0.3.0 completes the first provider-adapter checkpoint: config validation, chat,
+streaming where supported, normalized errors, and usage parsing/estimation are
+handled behind the shared model client boundary.
+
 ## Quick Path
 
 Inspect configured providers:
@@ -22,7 +26,7 @@ agentos models test local-stub --stream
 | `openai-compatible` | configurable | yes when compatible | Uses `base_url` and `api_key_env` from config. |
 | `openrouter` | `OPENROUTER_API_KEY` | yes | Defaults to `https://openrouter.ai/api/v1`; safe extra headers only. |
 | `anthropic` | `ANTHROPIC_API_KEY` | yes | Uses Anthropic messages API shape through `httpx`. |
-| `ollama` | none | yes when local server supports it | Defaults to local Ollama OpenAI-compatible endpoint. |
+| `ollama` | none | yes when local server supports it | Defaults to the local Ollama API and does not require an API key. |
 
 ## Setup Examples
 
@@ -73,3 +77,6 @@ Provider failures normalize to:
 ## Dependency Choice
 
 AgentOS uses `httpx`, already present in project dependencies, for provider HTTP calls. No provider SDK is required for this adapter layer.
+
+Provider SDK adoption remains out of scope for v0.3.0 so the runtime dependency
+surface stays small and auditable.

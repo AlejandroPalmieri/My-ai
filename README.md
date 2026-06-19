@@ -4,9 +4,20 @@
 
 AgentOS Personal is a local-first foundation for a modular personal AI agent operating system. This MVP creates the repository structure, CLI, SQLite technical memory, SDD/OpenSpec artifact generation, skill registry scanning, policy checks, tests, and developer documentation.
 
-The v0.1.0 release is intended to be the first usable local MVP: a safe command-line workspace for technical memory, structured SDD changes, skills, policies, traces, profiles, model/provider configuration, backups, local evals, a basic dashboard, an experimental MCP boundary, and a simple strategic document index.
+The v0.3.0 release checkpoint is the first broader local runtime checkpoint: a safe command-line workspace with streaming chat, provider-specific model adapters, explicit opt-in retrieval, allowlisted agent tool-calling, stronger local evals, and a documented MCP SDK deferral.
 
-No real LLM provider calls, autonomous command execution, external hosted MCP integrations, vector search, or self-modifying prompts are implemented in this first pass.
+External provider calls require explicit configuration through environment variables. AgentOS still does not implement autonomous shell execution, externally hosted MCP integrations, vector search, or self-modifying prompts.
+
+## v0.3.0 Checkpoint
+
+- Streaming chat is available for `chat once` and interactive chat when the active provider supports it.
+- Provider adapters cover `local-stub`, OpenAI, OpenAI-compatible, OpenRouter, Anthropic, and Ollama behind one model client boundary.
+- Technical memory and Strategic Brain retrieval are explicit opt-in only with `--with-memory`, `--with-brain`, or session-local interactive commands.
+- Agent runs can call only allowlisted internal tools; there is no shell, arbitrary file read/write, or network browsing tool.
+- Local evals cover providers, streaming, context, retrieval, agent runs, tool safety, and safety policy behavior.
+- The official Python MCP SDK is intentionally deferred; see `docs/mcp.md` and `docs/mcp-sdk-decision.md`.
+
+See `docs/v0.3.0-release-notes.md` for the release checkpoint, validation, security posture, known limitations, and v0.4.0 milestones.
 
 ## One-Line Go CLI Install
 
@@ -106,6 +117,8 @@ agentos chat once "Hello AgentOS" --no-stream
 agentos agents status
 agentos usage summary
 agentos mcp serve
+agentos mcp tools
+agentos mcp status
 agentos eval run
 agentos eval run --category safety
 agentos eval report --latest
@@ -227,6 +240,11 @@ agentos mcp serve
 
 It is local-only by default, does not execute shell commands, and does not expose delete operations. See `docs/mcp.md` for the Codex MCP config and security notes.
 
+The official Python MCP SDK (`mcp`) is intentionally deferred for now; AgentOS
+keeps the current custom JSON-RPC STDIO implementation because the active MCP
+needs are local-only and do not justify the extra dependency or async/server
+abstraction yet. See `docs/mcp-sdk-decision.md`.
+
 Operational traces are written locally as JSONL under `.agentos/traces/YYYY-MM-DD.jsonl`.
 
 Trace commands inspect local JSONL events: `agentos traces list`, `agentos traces show --date YYYY-MM-DD`, `agentos traces tail`, and `agentos traces export`. Trace payloads redact sensitive values before writing. See `docs/traces.md`.
@@ -256,8 +274,9 @@ Interactive chat commands include `/model list`, `/model set <profile>`,
 `/usage`, `/usage reset --confirm`, `/agents`, `/clear`, `/dashboard`, and
 `/memory search <query>`. Any other input is sent to the active model. AgentOS
 does not automatically include memory, brain documents, traces, or local files
-in prompts; retrieval-augmented chat is a future feature. See
-`docs/interactive-chat.md`.
+in prompts. Retrieval is session-local opt-in only with `/memory on`,
+`/brain on`, and `/retrieve ...`. See `docs/interactive-chat.md` and
+`docs/retrieval.md`.
 
 ## Dashboard
 
@@ -332,10 +351,11 @@ Skills can live in project-local `skills/**/SKILL.md` or Codex-style `.agents/sk
 - Restore operations require explicit `--confirm`.
 - The dashboard does not reveal redacted sensitive values.
 - The experimental MCP server does not expose shell execution or delete operations.
+- Retrieval from memory and Strategic Brain is off by default and must be opted in per request or session.
 
 ## Roadmap
 
-See `docs/roadmap.md` for implemented modules, intentionally stubbed areas, and next milestones. The next likely areas are stronger approval workflows, richer eval fixtures, formal MCP SDK integration if adopted, strategic brain entity models, and optional backup integrity/encryption.
+See `docs/roadmap.md` for implemented modules, intentionally stubbed areas, and v0.4.0 milestones. The next likely areas are stronger approval workflows, richer eval fixtures, formal MCP SDK integration if adopted, strategic brain entity models, and optional backup integrity/encryption.
 
 ## Tests
 

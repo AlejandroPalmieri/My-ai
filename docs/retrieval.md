@@ -2,6 +2,9 @@
 
 AgentOS chat can use local technical memory and Strategic Brain context only when the user explicitly opts in for that request or interactive session. Default chat sends only the user message and optional system prompt.
 
+This is a release checkpoint security requirement: retrieval is off by default in
+v0.3.0 and must stay opt-in for both one-shot and interactive chat.
+
 ## Quick Path
 
 ```powershell
@@ -51,3 +54,9 @@ END LOCAL OPT-IN CONTEXT
 - Hidden paths and sensitive-looking content are filtered from retrieval context.
 - Traces store counts and ids only, not full retrieved content.
 - Traces, backups, files, and arbitrary local data are not retrieved.
+
+## Known Limits
+
+- Strategic Brain retrieval is local text search only; embeddings, graph
+  reasoning, PDF ingestion, and synthesis are still future work.
+- Context is inserted as bounded excerpts with labels, not as raw database dumps.

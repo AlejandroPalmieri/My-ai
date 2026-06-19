@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const Version = "0.1.0"
+const Version = "0.3.0"
 
 func Run(args []string, stdout io.Writer, stderr io.Writer) error {
 	if len(args) == 0 {

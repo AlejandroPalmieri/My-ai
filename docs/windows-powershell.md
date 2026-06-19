@@ -38,7 +38,7 @@ agentos version
 Expected output:
 
 ```text
-AgentOS Personal 0.1.0
+AgentOS Personal 0.3.0
 ```
 
 Run the local diagnostic command when setup or PATH behavior looks wrong:

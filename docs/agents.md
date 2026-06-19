@@ -10,6 +10,9 @@ This is state tracking only. Starting an agent writes a local metadata record;
 it does not run shell commands, call an LLM, start a background worker, or
 perform autonomous work.
 
+v0.3.0 adds an explicit bounded run path with safe allowlisted tool-calling:
+`agentos agents run --tools`. It is not autonomous background execution.
+
 ## Commands
 
 ```powershell
@@ -67,6 +70,15 @@ JSON tool-call messages, validates the requested tool, checks policies, executes
 only allowlisted internal tools, and stops after `--max-steps` or a final answer.
 
 See `docs/tools.md` and `docs/runtime.md`.
+
+## Security Boundary
+
+- Tool-calling is disabled unless `--tools` is provided.
+- Unknown tools are blocked.
+- There is no unrestricted shell, arbitrary file read/write, or network browsing
+  tool.
+- Per-run step limits stop runaway loops.
+- Review-risk tools require explicit approval before execution.
 
 ## Dashboard
 

@@ -21,7 +21,8 @@ from agentos.logging.traces import (
     TraceEventType,
     TraceLogger,
 )
-from agentos.mcp.server import serve_stdio
+from agentos.mcp.server import mcp_status, serve_stdio
+from agentos.mcp.tools import tool_definitions
 from agentos.models.client import chat_once
 from agentos.models.config import (
     create_default_model_config,
@@ -357,6 +358,45 @@ def ui_banner(
 def mcp_serve(root: RootOption = Path(".")) -> None:
     """Serve AgentOS local capabilities over MCP STDIO."""
     serve_stdio(root)
+
+
+@mcp_app.command("tools")
+def mcp_tools(root: RootOption = Path(".")) -> None:
+    """List tools exposed by the local MCP STDIO server."""
+    trace = _start_trace(root, "mcp.tools")
+    tools = tool_definitions()
+    table = Table("Tool", "Description")
+    for tool in tools:
+        table.add_row(str(tool["name"]), str(tool["description"]))
+    console.print(table)
+    for tool in tools:
+        console.print(str(tool["name"]), markup=False)
+    _complete_trace(trace, "mcp.tools", {"count": len(tools)})
+
+
+@mcp_app.command("status")
+def mcp_status_command(root: RootOption = Path(".")) -> None:
+    """Show local MCP implementation and SDK adoption status."""
+    trace = _start_trace(root, "mcp.status")
+    status = mcp_status(root)
+    sdk = status["sdk"] if isinstance(status["sdk"], dict) else {}
+    table = Table("Field", "Value")
+    table.add_row("transport", str(status["transport"]))
+    table.add_row("local_only", str(status["local_only"]))
+    table.add_row("network_server", str(status["network_server"]))
+    table.add_row("implementation", str(status["implementation"]))
+    table.add_row("sdk_candidate", str(sdk.get("candidate", "")))
+    table.add_row("sdk_adoption", str(sdk.get("adoption", "")))
+    table.add_row("dependency_added", str(sdk.get("dependency_added", False)))
+    table.add_row("tool_count", str(status["tool_count"]))
+    table.add_row("shutdown", str(status["shutdown"]))
+    console.print(table)
+    console.print(
+        "mcp status local_only=True implementation=custom-json-rpc-stdio "
+        "sdk_adoption=deferred dependency_added=False",
+        markup=False,
+    )
+    _complete_trace(trace, "mcp.status", {"tool_count": status["tool_count"]})
 
 
 @models_app.command("init")

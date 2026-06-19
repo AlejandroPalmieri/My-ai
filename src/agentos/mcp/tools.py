@@ -26,6 +26,34 @@ def _object_schema(
     }
 
 
+ALLOWED_TOOL_NAMES = (
+    "memory_add",
+    "memory_search",
+    "memory_get",
+    "brain_search",
+    "sdd_new",
+    "sdd_status",
+    "skills_list",
+    "policies_check",
+    "models_status",
+    "usage_summary",
+    "agents_status",
+)
+
+BLOCKED_TOOL_NAMES = (
+    "memory_delete",
+    "backup_restore",
+    "shell",
+    "shell_execute",
+    "command_run",
+    "file_read",
+    "file_write",
+    "update",
+    "self_update",
+    "uninstall",
+)
+
+
 _TOOLS: list[dict[str, object]] = [
     {
         "name": "memory_add",
@@ -81,6 +109,23 @@ _TOOLS: list[dict[str, object]] = [
         ),
     },
     {
+        "name": "brain_search",
+        "description": "Search indexed Strategic Brain documents and return bounded excerpts.",
+        "inputSchema": _object_schema(
+            {
+                "query": {"type": "string", "description": "Search query."},
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "description": "Maximum excerpt results.",
+                    "default": 5,
+                },
+            },
+            ["query"],
+        ),
+    },
+    {
         "name": "sdd_new",
         "description": "Create a local SDD/OpenSpec change.",
         "inputSchema": _object_schema(
@@ -116,4 +161,22 @@ _TOOLS: list[dict[str, object]] = [
             },
         ),
     },
+    {
+        "name": "models_status",
+        "description": "Show local model provider readiness without exposing secret values.",
+        "inputSchema": _object_schema({}),
+    },
+    {
+        "name": "usage_summary",
+        "description": "Show aggregate local token and estimated cost usage metadata.",
+        "inputSchema": _object_schema({}),
+    },
+    {
+        "name": "agents_status",
+        "description": "Show local agent runtime status metadata.",
+        "inputSchema": _object_schema({}),
+    },
 ]
+
+
+assert tuple(tool["name"] for tool in _TOOLS) == ALLOWED_TOOL_NAMES

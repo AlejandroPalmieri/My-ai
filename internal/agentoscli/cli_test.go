@@ -31,7 +31,7 @@ func TestRunVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
-	if got := stdout.String(); !strings.Contains(got, "AgentOS Personal 0.1.0") {
+	if got := stdout.String(); !strings.Contains(got, "AgentOS Personal 0.3.0") {
 		t.Fatalf("version output = %q", got)
 	}
 }

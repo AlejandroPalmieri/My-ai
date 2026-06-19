@@ -29,10 +29,19 @@
 - Controlled refiner v0 for trace analysis and markdown-only improvement proposals.
 - Local zip backups for AgentOS configuration and metadata with confirmed restore.
 
+## Implemented in v0.3.0
+
+- Streaming chat for `agentos chat once` and interactive chat.
+- Provider-specific adapters for local-stub, OpenAI, OpenAI-compatible, OpenRouter, Anthropic, and Ollama.
+- Explicit opt-in retrieval from technical memory and Strategic Brain, including context preview and dry-run paths.
+- Bounded agent runs with safe allowlisted internal tool-calling.
+- Local eval categories for providers, streaming, context, retrieval, agents, tools, and safety.
+- MCP SDK decision record: defer official Python MCP SDK adoption until the tool or protocol surface justifies it.
+
 ## Intentionally Stubbed
 
-- LLM provider integrations.
-- Autonomous command execution.
+- Vendor SDK integrations for model providers.
+- Autonomous shell or command execution.
 - Networked or externally hosted MCP server integration.
 - GBrain-style graph/vector retrieval.
 - Strategic Brain embeddings, PDF ingestion, and LLM synthesis.
@@ -44,11 +53,11 @@
 - Arbitrary shell execution from the dashboard.
 - Revealing redacted sensitive policy values in dashboard views.
 
-## Next Recommended Milestones
+## v0.4.0 Milestones
 
-1. Replace or extend the experimental MCP JSON-RPC adapter with a formal SDK-backed MCP server if the dependency is adopted.
-2. Expand policy checks with structured match types and approvals.
-3. Add richer memory update/delete commands with explicit approval gates.
-4. Add strategic entity models for future GBrain retrieval.
-5. Expand eval fixtures and add human approval gates for future Continual Harness work.
+1. Decide whether MCP protocol needs now justify adopting the official Python MCP SDK.
+2. Add stronger approval workflows for review-risk tools and agent runs.
+3. Expand provider fixtures, streaming edge cases, and retrieval eval corpora.
+4. Add strategic entity models for future GBrain-style retrieval.
+5. Add richer memory update/delete flows with explicit approval gates.
 6. Add backup integrity checks and optional encryption for sensitive environments.
